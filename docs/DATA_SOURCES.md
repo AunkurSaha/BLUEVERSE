@@ -95,6 +95,14 @@ Known limitations:
 
 # Current Project Datasets
 
-None selected yet.
-
-The first development task should be to select a small real dataset and fill in the registry above.
+Dataset name: Instantaneous fields for product GLOBAL_ANALYSISFORECAST_PHY_001_024
+Provider: Copernicus Marine
+Local filename: data/raw/bay_of_bengal_temperature.nc
+Dataset ID: cmems_mod_glo_phy-thetao_anfc_0.083deg_PT6H-i
+Dataset version: 202406
+Variable requested: thetao
+Requested geographic bounds: 85E–90E, 15N–20N
+Requested depth range: 0–500 m
+Note that the dataset's shallowest model depth is approximately 0.494 m
+Requested timestamp: 2026-09-21T00:00:00
+Download size: approximately 0.45 MB
