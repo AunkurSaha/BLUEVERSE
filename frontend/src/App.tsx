@@ -4,13 +4,27 @@ import LeftSidebar from './components/layout/LeftSidebar'
 import RightInspector from './components/layout/RightInspector'
 import BottomTimeline from './components/layout/BottomTimeline'
 import OceanGlobe from './components/globe/OceanGlobe'
+import TemperatureLayerStatus from './components/globe/TemperatureLayerStatus'
+import TemperatureLegend from './components/globe/TemperatureLegend'
 import {
+  fetchTemperatureSlice,
   fetchDatasetMetadata,
   fetchDatasets,
   fetchHealth,
   type BackendStatus,
   type DatasetMetadata,
 } from './services/api'
+import {
+  prepareTemperatureSlice,
+  TemperatureSliceValidationError,
+  type PreparedTemperatureSlice,
+} from './lib/temperatureSlice'
+
+const TEMPERATURE_SLICE_SELECTION = {
+  variable: 'thetao',
+  timeIndex: 0,
+  depthIndex: 0,
+} as const
 
 const App: React.FC = () => {
   const [datasets, setDatasets] = useState<string[]>([])
@@ -20,6 +34,10 @@ const App: React.FC = () => {
   const [datasetsError, setDatasetsError] = useState<string | null>(null)
   const [metadataLoading, setMetadataLoading] = useState(false)
   const [metadataError, setMetadataError] = useState<string | null>(null)
+  const [temperatureLayer, setTemperatureLayer] = useState<PreparedTemperatureSlice | null>(null)
+  const [sliceLoading, setSliceLoading] = useState(false)
+  const [sliceError, setSliceError] = useState<string | null>(null)
+  const [sliceIsEmpty, setSliceIsEmpty] = useState(false)
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
 
   useEffect(() => {
@@ -86,6 +104,67 @@ const App: React.FC = () => {
     return () => controller.abort()
   }, [selectedDataset])
 
+  useEffect(() => {
+    if (!selectedDataset) {
+      setTemperatureLayer(null)
+      setSliceLoading(false)
+      setSliceError(null)
+      setSliceIsEmpty(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setTemperatureLayer(null)
+    setSliceLoading(true)
+    setSliceError(null)
+    setSliceIsEmpty(false)
+
+    const loadTemperatureSlice = async () => {
+      try {
+        const response = await fetchTemperatureSlice(
+          selectedDataset,
+          TEMPERATURE_SLICE_SELECTION.variable,
+          TEMPERATURE_SLICE_SELECTION.timeIndex,
+          TEMPERATURE_SLICE_SELECTION.depthIndex,
+          controller.signal,
+        )
+        if (controller.signal.aborted) return
+
+        setTemperatureLayer(prepareTemperatureSlice(response))
+      } catch (error) {
+        if (controller.signal.aborted) return
+
+        setTemperatureLayer(null)
+        if (
+          error instanceof TemperatureSliceValidationError &&
+          error.kind === 'empty'
+        ) {
+          setSliceIsEmpty(true)
+          setSliceError(null)
+        } else {
+          setSliceIsEmpty(false)
+          setSliceError(
+            error instanceof Error ? error.message : 'Unable to load temperature slice',
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setSliceLoading(false)
+        }
+      }
+    }
+
+    loadTemperatureSlice()
+    return () => controller.abort()
+  }, [selectedDataset])
+
+  const timeLevels = datasetMetadata?.time_coordinate
+    ? datasetMetadata.dimensions[datasetMetadata.time_coordinate] ?? null
+    : null
+  const depthLevels = datasetMetadata?.vertical_coordinate
+    ? datasetMetadata.dimensions[datasetMetadata.vertical_coordinate] ?? null
+    : null
+
   return (
     <div className="flex h-dvh min-h-dvh w-full min-w-0 flex-col overflow-hidden bg-[#050b14]">
       <AppHeader backendStatus={backendStatus} selectedDataset={selectedDataset} />
@@ -101,16 +180,35 @@ const App: React.FC = () => {
           aria-label="Cesium globe viewport"
           className="relative min-h-[60vh] flex-1 overflow-hidden rounded-lg border border-white/10 bg-[#02060d] lg:min-h-0"
         >
-          <OceanGlobe />
+          <OceanGlobe temperatureLayer={temperatureLayer} />
+          <TemperatureLayerStatus
+            isLoading={sliceLoading}
+            error={sliceError}
+            isEmpty={sliceIsEmpty && !sliceLoading && !sliceError}
+          />
+          {temperatureLayer && !sliceLoading && !sliceError && (
+            <TemperatureLegend layer={temperatureLayer} />
+          )}
         </section>
         <RightInspector
           dataset={selectedDataset}
           metadata={datasetMetadata}
+          temperatureLayer={temperatureLayer}
+          sliceSelection={selectedDataset ? TEMPERATURE_SLICE_SELECTION : null}
           isLoading={metadataLoading}
           error={metadataError}
+          sliceLoading={sliceLoading}
+          sliceError={sliceError}
         />
       </main>
-      <BottomTimeline />
+      <BottomTimeline
+        temperatureLayer={temperatureLayer}
+        sliceSelection={selectedDataset ? TEMPERATURE_SLICE_SELECTION : null}
+        timeLevels={timeLevels}
+        depthLevels={depthLevels}
+        isLoading={sliceLoading}
+        error={sliceError}
+      />
     </div>
   )
 }

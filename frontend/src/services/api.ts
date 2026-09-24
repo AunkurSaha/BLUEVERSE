@@ -1,3 +1,5 @@
+import type { TemperatureSlice } from '../lib/temperatureSlice'
+
 const API_BASE = '/api'
 
 export type Dataset = string
@@ -51,5 +53,20 @@ export const fetchDatasetMetadata = async (
   requestJson(
     `${API_BASE}/datasets/${encodeURIComponent(datasetId)}/metadata`,
     'Failed to fetch dataset metadata',
+    { signal },
+  )
+
+export const fetchTemperatureSlice = async (
+  datasetId: string,
+  variable: string,
+  timeIndex: number,
+  depthIndex: number,
+  signal?: AbortSignal,
+): Promise<TemperatureSlice> =>
+  requestJson(
+    `${API_BASE}/datasets/${encodeURIComponent(datasetId)}/slice?variable=${encodeURIComponent(
+      variable,
+    )}&time_index=${encodeURIComponent(timeIndex)}&depth_index=${encodeURIComponent(depthIndex)}`,
+    'Failed to load temperature slice',
     { signal },
   )

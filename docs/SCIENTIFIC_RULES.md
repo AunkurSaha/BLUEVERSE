@@ -229,7 +229,12 @@ Processed data should remain traceable to its source.
 Add project-specific decisions below as they are made.
 
 ## Current assumptions
-- None yet. Do not invent them.
+- For the Phase 5 temperature raster:
+  - `lat_vals` and `lon_vals` are treated as grid-cell centers.
+  - A regular raster is accepted only when coordinate spacing is monotonic and regular within a 0.1% relative tolerance.
+  - Cell edges are derived from the median spacing and centered on the source coordinates.
+  - Missing cells are rendered as fully transparent pixels and are never interpolated or replaced with numeric values.
+  - The raster is georeferenced over the derived cell-edge extent without resampling or smoothing.
 
 When a real dataset is selected, document:
 - coordinate conventions;

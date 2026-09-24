@@ -26,6 +26,7 @@ class DatasetMetadata(BaseModel):
 
 class SliceResponse(BaseModel):
     slice_data: List[List[Optional[float]]]
+    dimension_order: List[str]
     time_coord_name: str
     depth_coord_name: str
     lat_coord_name: str

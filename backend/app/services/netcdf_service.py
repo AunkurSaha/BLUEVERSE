@@ -151,6 +151,7 @@ def process_slice(ds, var_name, time_index, depth_index):
     # Return a dictionary with all the needed information
     return {
         'slice_data': convert(slice_data),
+        'dimension_order': ['latitude', 'longitude'],
         'time_coord_name': time_coord_name,
         'depth_coord_name': depth_coord_name,
         'lat_coord_name': lat_coord_name,

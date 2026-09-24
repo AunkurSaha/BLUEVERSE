@@ -39,6 +39,7 @@ class TestAPI(unittest.TestCase):
             data = response.json()
             self.assertIn("slice_data", data)
             self.assertIn("finite_count", data)
+            self.assertEqual(data["dimension_order"], ["latitude", "longitude"])
         else:
             # If it''s not 200, it should be a 4xx error (not 500)
             self.assertLess(response.status_code, 500)

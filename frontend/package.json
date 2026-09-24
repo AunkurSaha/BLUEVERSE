@@ -1,11 +1,13 @@
 {
   "name": "frontend",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "predev": "node scripts/copy-cesium-assets.mjs",
     "prebuild": "node scripts/copy-cesium-assets.mjs",
     "dev": "vite",
     "build": "vite build",
+    "test:science": "node --experimental-strip-types src/lib/temperatureSlice.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
