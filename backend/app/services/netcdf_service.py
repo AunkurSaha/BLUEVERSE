@@ -208,7 +208,12 @@ class NetCDFService:
         
         return {
             'dataset_id': dataset_id,
-            'file_path': file_path,
+            'provenance': {
+                'provider': global_attrs.get('provider') or global_attrs.get('producer'),
+                'product_id': global_attrs.get('product'),
+                'model_source': global_attrs.get('source'),
+                'institution': global_attrs.get('institution'),
+            },
             'dimensions': dimensions,
             'variables': variables,
             'time_coordinate': time_coord_name,

@@ -5,6 +5,7 @@
 This repository is for **Smart India Hackathon 2026 — Problem Statement SIH26067**, Ministry of Earth Sciences / INCOIS.
 
 Goal: build a **browser-based interactive 3D/4D ocean visualization and model–observation analysis platform** that integrates:
+
 - numerical ocean-model outputs;
 - in-situ observations such as Argo, gliders, buoys, CTD, and related datasets;
 - spatial, depth, and temporal exploration;
@@ -20,6 +21,7 @@ This is a scientific software project. Correctness is more important than flashy
 ## 1. Inspect Before Editing
 
 Before making changes:
+
 1. inspect the relevant existing files;
 2. understand current architecture;
 3. identify existing utilities/components/services that can be reused;
@@ -35,6 +37,7 @@ Do not create duplicate services, components, utilities, schemas, or abstraction
 Do **not** silently generate fake oceanographic values.
 
 Forbidden unless the task explicitly requests mock/demo data:
+
 - random temperature fields;
 - random salinity fields;
 - fake Argo profiles;
@@ -43,6 +46,7 @@ Forbidden unless the task explicitly requests mock/demo data:
 - invented timestamps, coordinates, QC flags, units, resolutions, or dataset metadata.
 
 If real data is unavailable:
+
 - fail clearly;
 - expose the missing dependency/data;
 - optionally support a clearly labelled `demo/mock` mode only when explicitly requested.
@@ -54,6 +58,7 @@ Never present mock data as real INCOIS, Argo, Copernicus, GLORYS, or observation
 ## 3. Preserve Scientific Metadata
 
 When reading scientific datasets, preserve and expose when available:
+
 - variable names;
 - `standard_name`;
 - `long_name`;
@@ -74,6 +79,7 @@ Do not discard metadata merely to simplify the frontend.
 ## 4. Never Assume Variable Names
 
 Do not hard-code that all datasets use:
+
 - `lat`;
 - `lon`;
 - `depth`;
@@ -84,6 +90,7 @@ Do not hard-code that all datasets use:
 - `v`.
 
 Datasets may use names such as:
+
 - `latitude`, `LATITUDE`, `nav_lat`;
 - `longitude`, `LONGITUDE`, `nav_lon`;
 - `depth`, `deptht`, `lev`, `pressure`, `PRES`;
@@ -100,6 +107,7 @@ If coordinate/variable detection is ambiguous, report the ambiguity instead of g
 ## 5. Coordinate and Unit Safety
 
 Always consider:
+
 - longitude may be `0..360` or `-180..180`;
 - latitude ordering may be ascending or descending;
 - depth may be positive downward or encoded differently;
@@ -110,6 +118,7 @@ Always consider:
 - salinity conventions should not be silently changed.
 
 Do not convert units without:
+
 1. documenting the source unit;
 2. documenting the target unit;
 3. using a scientifically valid conversion;
@@ -120,6 +129,7 @@ Do not convert units without:
 ## 6. Quality-Control Rules
 
 For observational data:
+
 - do not treat all measurements as equally valid;
 - retain original QC information;
 - do not silently discard QC flags;
@@ -133,6 +143,7 @@ For Argo specifically, never assume a profile is valid without checking availabl
 ## 7. Model–Observation Comparison Rules
 
 Model and observation values may only be compared after accounting for:
+
 - spatial coordinates;
 - time;
 - vertical coordinate;
@@ -144,6 +155,7 @@ Model and observation values may only be compared after accounting for:
 - interpolation method.
 
 Every collocation result should retain enough provenance to explain:
+
 - observation used;
 - model dataset used;
 - model time(s);
@@ -163,6 +175,7 @@ Do not label residual-derived metrics as "AI confidence".
 Never load an entire large ocean model into memory unless the task explicitly requires it and the data size is proven safe.
 
 Prefer:
+
 - Xarray lazy access;
 - Dask/chunking when appropriate;
 - spatial/depth/time subsetting;
@@ -181,6 +194,7 @@ When one is required, document why it is safe.
 The frontend is a scientific workspace, not a decorative dashboard.
 
 Prioritize:
+
 - correct geospatial positioning;
 - clear variable/unit labels;
 - visible timestamps;
@@ -199,6 +213,7 @@ If the requested depth differs from the actual model level, show both.
 ## 10. Architecture Rules
 
 Initial stack:
+
 - Frontend: React + TypeScript + Vite + CesiumJS
 - Backend: Python + FastAPI
 - Scientific: Xarray + NumPy + SciPy/Pandas as required
@@ -215,6 +230,7 @@ Keep the repository simple during early scientific validation.
 ## 11. Dependency Rules
 
 Before adding a dependency:
+
 1. verify existing packages cannot reasonably solve the task;
 2. explain why the dependency is needed;
 3. add it to the appropriate dependency file;
@@ -230,6 +246,7 @@ Never install global packages as part of repository code.
 Scientific logic requires tests.
 
 Add tests for:
+
 - coordinate normalization;
 - nearest-level selection;
 - variable/coordinate detection;
@@ -247,6 +264,7 @@ Tests should use tiny deterministic fixtures, not huge production files.
 ## 13. Error Handling
 
 Fail explicitly when:
+
 - dataset cannot be opened;
 - required variable is missing;
 - units are incompatible;
@@ -264,6 +282,7 @@ Do not replace failures with zeros, random values, fabricated defaults, or place
 Implement only the requested phase.
 
 Do not:
+
 - build unrelated authentication;
 - create admin dashboards;
 - add AI/chatbot features;
@@ -272,6 +291,7 @@ Do not:
 - implement speculative "future" systems unless requested.
 
 Hackathon priority:
+
 1. real data;
 2. scientific correctness;
 3. working end-to-end flow;
@@ -283,6 +303,7 @@ Hackathon priority:
 ## 15. Before Finishing Any Task
 
 Always report:
+
 - files changed;
 - why each file changed;
 - commands/tests run;
@@ -295,3 +316,15 @@ Always report:
 If you could not verify something, explicitly say so.
 
 Never claim "fully working", "production ready", "scientifically validated", or similar unless it was actually verified.
+
+<!-- antislop:start -->
+## antislop
+
+For UI, copy, mobile layout, frontend polish, or code-comment tasks, load and apply the `antislop` skill automatically during the work.
+
+Do not ask for separate confirmation before using the skill unless the user explicitly requests a different design style or workflow.
+
+Use `antislop` as a quality filter throughout implementation, not merely as a final review step.
+
+Repository instructions, scientific correctness, accessibility requirements, and explicit user instructions always take priority over skill guidance.
+<!-- antislop:end -->

@@ -22,9 +22,9 @@ async def get_dataset_metadata(dataset_id: str = Path(..., description="The data
     try:
         return service.get_dataset_metadata(dataset_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail="Dataset not found.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Unable to read dataset metadata.")
 
 @router.get("/datasets/{dataset_id}/slice", response_model=SliceResponse)
 async def get_slice(
@@ -37,18 +37,8 @@ async def get_slice(
     try:
         return service.get_slice(dataset_id, variable, time_index, depth_index)
     except ValueError as e:
-        # Check if it's about dataset not found, variable not found, or indices out of range
         if "not registered" in str(e):
-            raise HTTPException(status_code=404, detail=str(e))
-        elif "not found in dataset" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        elif "Could not unambiguously detect" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        elif "Error selecting indices" in str(e) or "Error loading slice data" in str(e) or "Error getting coordinate values" in str(e) or "Error getting latitude/longitude values" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        elif "No finite values" in str(e):
-            raise HTTPException(status_code=400, detail=str(e))
-        else:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+        raise HTTPException(status_code=400, detail="Unable to read the requested slice.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=500, detail="Unable to read the requested slice.")

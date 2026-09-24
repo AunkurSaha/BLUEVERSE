@@ -17,19 +17,22 @@ class TestAPI(unittest.TestCase):
         data = response.json()
         self.assertIsInstance(data, list)
         self.assertGreater(len(data), 0)
-        self.assertIn("bay_of_bengal_temperature", data)
+        self.assertIn("bay-of-bengal-temperature", data)
 
     def test_get_dataset_metadata(self):
-        response = self.client.get("/api/datasets/bay_of_bengal_temperature/metadata")
+        response = self.client.get("/api/datasets/bay-of-bengal-temperature/metadata")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["dataset_id"], "bay_of_bengal_temperature")
+        self.assertEqual(data["dataset_id"], "bay-of-bengal-temperature")
+        self.assertNotIn("file_path", data)
+        self.assertIn("provenance", data)
+        self.assertIn("product_id", data["provenance"])
         self.assertIn("dimensions", data)
         self.assertIn("variables", data)
 
     def test_get_slice(self):
         # We need to know a variable name from the dataset. Let''s assume "thetao" is present.
-        response = self.client.get("/api/datasets/bay_of_bengal_temperature/slice?variable=thetao&time_index=0&depth_index=0")
+        response = self.client.get("/api/datasets/bay-of-bengal-temperature/slice?variable=thetao&time_index=0&depth_index=0")
         # This might fail if the variable is not present or indices are out of range, but we''ll accept 200 or 400/404/500 for now.
         # We''ll just check that the response is not 500 if the dataset exists.
         if response.status_code == 200:

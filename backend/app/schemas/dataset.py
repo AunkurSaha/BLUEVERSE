@@ -1,9 +1,18 @@
 from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
 
+class DatasetProvenance(BaseModel):
+    provider: Optional[str]
+    product_id: Optional[str]
+    model_source: Optional[str]
+    institution: Optional[str]
+
+    class Config:
+        from_attributes = True
+
 class DatasetMetadata(BaseModel):
     dataset_id: str
-    file_path: str
+    provenance: DatasetProvenance
     dimensions: Dict[str, int]
     variables: List[str]
     time_coordinate: Optional[str]

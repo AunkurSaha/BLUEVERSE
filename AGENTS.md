@@ -31,6 +31,7 @@ Never skip directly from prompt to large-scale code generation.
 ## Prohibited Behavior
 
 Do not:
+
 - invent APIs that have not been verified;
 - invent dataset fields;
 - invent file paths;
@@ -52,15 +53,18 @@ Do not:
 ## Safe Mocking Rule
 
 Mock/synthetic data is allowed only when:
+
 - the task explicitly asks for it, OR
 - a test fixture requires deterministic synthetic data.
 
 Every mock dataset must be clearly marked:
+
 - in code;
 - in UI if user-visible;
 - in documentation.
 
 Use labels such as:
+
 - `DEMO DATA`;
 - `SYNTHETIC FIXTURE`;
 - `NOT REAL OBSERVATION`.
@@ -70,6 +74,7 @@ Use labels such as:
 ## Scientific Review Checklist
 
 Before approving ocean-data logic, check:
+
 - coordinate names and orientation;
 - longitude convention;
 - time/calendar interpretation;
@@ -87,6 +92,7 @@ Before approving ocean-data logic, check:
 ## Frontend Review Checklist
 
 Check:
+
 - displayed unit matches backend unit;
 - time is visible and unambiguous;
 - depth is visible;
@@ -102,6 +108,7 @@ Check:
 ## Backend Review Checklist
 
 Check:
+
 - large arrays remain lazy where possible;
 - API validates parameters;
 - no full-array serialization accidentally occurs;
@@ -114,8 +121,21 @@ Check:
 ## Completion Standard
 
 A task is complete only if:
+
 - the requested behavior exists;
 - relevant tests/validation pass;
 - no known critical scientific issue is hidden;
 - no unrelated features were added;
 - the agent reports exactly what remains uncertain.
+
+<!-- antislop:start -->
+## antislop
+
+For UI, copy, mobile layout, frontend polish, or code-comment tasks, load and apply the `antislop` skill automatically during the work.
+
+Do not ask for separate confirmation before using the skill unless the user explicitly requests a different design style or workflow.
+
+Use `antislop` as a quality filter throughout implementation, not merely as a final review step.
+
+Repository instructions, scientific correctness, accessibility requirements, and explicit user instructions always take priority over skill guidance.
+<!-- antislop:end -->

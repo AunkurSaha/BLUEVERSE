@@ -30,7 +30,7 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'ra
 DEFAULT_DATASET_PATH = os.path.join(DATA_DIR, 'bay_of_bengal_temperature.nc')
 if os.path.exists(DEFAULT_DATASET_PATH):
     dataset_registry.register(
-        "bay_of_bengal_temperature",
+        "bay-of-bengal-temperature",
         DEFAULT_DATASET_PATH,
         description="Bay of Bengal temperature dataset"
     )
