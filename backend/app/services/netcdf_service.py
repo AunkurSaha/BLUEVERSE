@@ -177,7 +177,7 @@ def process_slice(ds, var_name, time_index, depth_index):
 
 class NetCDFService:
     def __init__(self):
-        pass
+        self._metadata_cache = {}
 
     def get_dataset_metadata(self, dataset_id: str) -> Dict[str, Any]:
         """Get metadata for a dataset."""
@@ -206,7 +206,15 @@ class NetCDFService:
         global_attrs = dict(ds.attrs)
         
         ds.close()
-        
+
+        # Prepare depth values and units if depth coordinate is found
+        depth_values = None
+        depth_units = None
+        if depth_coord_name is not None and depth_coord_name in ds.coords:
+            depth_coord = ds[depth_coord_name]
+            depth_values = depth_coord.values.tolist()  # Convert to list of Python floats
+            depth_units = depth_coord.attrs.get('units', '')
+
         return {
             'dataset_id': dataset_id,
             'provenance': {
@@ -221,20 +229,32 @@ class NetCDFService:
             'vertical_coordinate': depth_coord_name,
             'latitude_coordinate': lat_coord_name,
             'longitude_coordinate': lon_coord_name,
-            'global_attributes': global_attrs
+            'global_attributes': global_attrs,
+            # Additional fields for depth exploration
+            'depth_coordinate_name': depth_coord_name,
+            'depth_units': depth_units,
+            'depth_values': depth_values
         }
 
     def get_slice(self, dataset_id: str, var_name: str, time_index: int, depth_index: int) -> Dict[str, Any]:
         """Get a slice of data and metadata."""
+        # Validate dataset existence and get metadata (cached)
         dataset_info = dataset_registry.get(dataset_id)
         if not dataset_info:
             raise ValueError(f"Dataset ID '{dataset_id}' not registered.")
+
+        # Get metadata for depth validation
+        metadata = self.get_dataset_metadata(dataset_id)
+        depth_count = metadata['dimensions']['depth']
+        if depth_index < 0 or depth_index >= depth_count:
+            raise ValueError(f"Depth index {depth_index} is out of range. Valid range is 0 to {depth_count-1} for dataset with {depth_count} depth levels.")
+
         file_path = dataset_info['file_path']
         try:
             ds = xr.open_dataset(file_path)
         except Exception as e:
             raise ValueError(f"Error opening dataset: {e}")
-        
+
         try:
             result = process_slice(ds, var_name, time_index, depth_index)
         except Exception as e:
@@ -242,5 +262,5 @@ class NetCDFService:
             raise e
         finally:
             ds.close()
-        
+
         return result

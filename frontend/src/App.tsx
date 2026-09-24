@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import AppHeader from './components/layout/AppHeader'
 import LeftSidebar from './components/layout/LeftSidebar'
 import RightInspector from './components/layout/RightInspector'
@@ -20,12 +20,6 @@ import {
   type PreparedTemperatureSlice,
 } from './lib/temperatureSlice'
 
-const TEMPERATURE_SLICE_SELECTION = {
-  variable: 'thetao',
-  timeIndex: 0,
-  depthIndex: 0,
-} as const
-
 const App: React.FC = () => {
   const [datasets, setDatasets] = useState<string[]>([])
   const [selectedDataset, setSelectedDataset] = useState<string | null>(null)
@@ -39,6 +33,23 @@ const App: React.FC = () => {
   const [sliceError, setSliceError] = useState<string | null>(null)
   const [sliceIsEmpty, setSliceIsEmpty] = useState(false)
   const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
+  const [selectedDepthIndex, setSelectedDepthIndex] = useState(0)
+
+  // Cache for temperature slices keyed by datasetId-variable-timeIndex-depthIndex
+  const sliceCacheRef = useRef<Map<string, PreparedTemperatureSlice>>(new Map())
+
+  // Reset depth index when dataset changes
+  useEffect(() => {
+    if (selectedDataset) {
+      setSelectedDepthIndex(0)
+    }
+  }, [selectedDataset])
+
+  const temperatureSliceSelection = React.useMemo(() => ({
+    variable: 'thetao',
+    timeIndex: 0,
+    depthIndex: selectedDepthIndex,
+  }), [selectedDepthIndex])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -113,6 +124,17 @@ const App: React.FC = () => {
       return
     }
 
+    // Check cache first
+    const cacheKey = `${selectedDataset}-thetao-0-${selectedDepthIndex}`
+    const cachedSlice = sliceCacheRef.current.get(cacheKey)
+    if (cachedSlice) {
+      setTemperatureLayer(cachedSlice)
+      setSliceLoading(false)
+      setSliceError(null)
+      setSliceIsEmpty(false)
+      return
+    }
+
     const controller = new AbortController()
     setTemperatureLayer(null)
     setSliceLoading(true)
@@ -121,16 +143,29 @@ const App: React.FC = () => {
 
     const loadTemperatureSlice = async () => {
       try {
+        // Validate depth index using metadata (if available)
+        if (datasetMetadata) {
+          const depthCount = datasetMetadata.dimensions[datasetMetadata.vertical_coordinate ?? 'depth'] ?? 0
+          if (selectedDepthIndex < 0 || selectedDepthIndex >= depthCount) {
+            throw new Error(`Depth index ${selectedDepthIndex} is out of range. Valid range is 0 to ${depthCount - 1}`)
+          }
+        }
+
         const response = await fetchTemperatureSlice(
           selectedDataset,
-          TEMPERATURE_SLICE_SELECTION.variable,
-          TEMPERATURE_SLICE_SELECTION.timeIndex,
-          TEMPERATURE_SLICE_SELECTION.depthIndex,
+          temperatureSliceSelection.variable,
+          temperatureSliceSelection.timeIndex,
+          temperatureSliceSelection.depthIndex,
           controller.signal,
         )
         if (controller.signal.aborted) return
 
-        setTemperatureLayer(prepareTemperatureSlice(response))
+        const prepared = prepareTemperatureSlice(response)
+        // Cache the prepared slice
+        sliceCacheRef.current.set(cacheKey, prepared)
+        if (controller.signal.aborted) return
+
+        setTemperatureLayer(prepared)
       } catch (error) {
         if (controller.signal.aborted) return
 
@@ -156,7 +191,7 @@ const App: React.FC = () => {
 
     loadTemperatureSlice()
     return () => controller.abort()
-  }, [selectedDataset])
+  }, [selectedDataset, selectedDepthIndex, datasetMetadata])
 
   const timeLevels = datasetMetadata?.time_coordinate
     ? datasetMetadata.dimensions[datasetMetadata.time_coordinate] ?? null
@@ -164,6 +199,13 @@ const App: React.FC = () => {
   const depthLevels = datasetMetadata?.vertical_coordinate
     ? datasetMetadata.dimensions[datasetMetadata.vertical_coordinate] ?? null
     : null
+
+  const handleDepthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value, 10)
+    if (!isNaN(value)) {
+      setSelectedDepthIndex(value)
+    }
+  }
 
   return (
     <div className="flex h-dvh min-h-dvh w-full min-w-0 flex-col overflow-hidden bg-[#050b14]">
@@ -194,21 +236,25 @@ const App: React.FC = () => {
           dataset={selectedDataset}
           metadata={datasetMetadata}
           temperatureLayer={temperatureLayer}
-          sliceSelection={selectedDataset ? TEMPERATURE_SLICE_SELECTION : null}
+          sliceSelection={selectedDataset ? temperatureSliceSelection : null}
           isLoading={metadataLoading}
           error={metadataError}
           sliceLoading={sliceLoading}
           sliceError={sliceError}
         />
+        <BottomTimeline
+          temperatureLayer={temperatureLayer}
+          sliceSelection={selectedDataset ? temperatureSliceSelection : null}
+          timeLevels={timeLevels}
+          depthLevels={depthLevels}
+          depthValues={datasetMetadata?.depth_values ?? null}
+          depthUnits={datasetMetadata?.depth_units ?? null}
+          selectedDepthIndex={selectedDepthIndex}
+          isLoading={sliceLoading}
+          error={sliceError}
+          onDepthChange={handleDepthChange}
+        />
       </main>
-      <BottomTimeline
-        temperatureLayer={temperatureLayer}
-        sliceSelection={selectedDataset ? TEMPERATURE_SLICE_SELECTION : null}
-        timeLevels={timeLevels}
-        depthLevels={depthLevels}
-        isLoading={sliceLoading}
-        error={sliceError}
-      />
     </div>
   )
 }

@@ -21,6 +21,10 @@ export interface DatasetMetadata {
   latitude_coordinate: string | null
   longitude_coordinate: string | null
   global_attributes: Record<string, unknown>
+  // Additional fields for depth exploration
+  depth_coordinate_name: string | null
+  depth_units: string | null
+  depth_values: number[] | null
 }
 
 interface JsonRequestOptions {

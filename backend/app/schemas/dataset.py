@@ -20,6 +20,10 @@ class DatasetMetadata(BaseModel):
     latitude_coordinate: Optional[str]
     longitude_coordinate: Optional[str]
     global_attributes: Dict[str, Any]
+    # Additional fields for depth exploration
+    depth_coordinate_name: Optional[str] = None
+    depth_units: Optional[str] = None
+    depth_values: Optional[List[float]] = None
 
     class Config:
         from_attributes = True
