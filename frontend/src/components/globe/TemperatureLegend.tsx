@@ -9,13 +9,18 @@ import {
 
 interface TemperatureLegendProps {
   layer: PreparedTemperatureSlice
+  timeLevels: number | null
 }
 
-const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ layer }) => {
-  const { slice } = layer
+const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ layer, timeLevels }) => {
+  const { slice, colorScale } = layer
   const unit = formatDisplayUnit(slice.var_units)
-  const minimum = formatNumber(slice.tmin)
-  const maximum = formatNumber(slice.tmax)
+  // The legend shows the color scale actually used for rasterization: the fixed
+  // temporal scale when available, otherwise the per-slice range.
+  const scaleMin = colorScale ? colorScale.min : slice.tmin
+  const scaleMax = colorScale ? colorScale.max : slice.tmax
+  const minimum = formatNumber(scaleMin)
+  const maximum = formatNumber(scaleMax)
 
   return (
     <figure
@@ -35,6 +40,12 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ layer }) => {
         <span className="min-w-0 truncate">{unit}</span>
         <span className="font-mono">{maximum}</span>
       </div>
+      {colorScale && (
+        <p className="mt-1.5 text-[10px] leading-relaxed text-cyan-200/70">
+          Temporal comparison scale — fixed across{' '}
+          {timeLevels !== null ? `${timeLevels} timestamps` : 'all timestamps'} at this depth.
+        </p>
+      )}
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
         Source grid cells; no interpolation. No data is transparent.
       </p>

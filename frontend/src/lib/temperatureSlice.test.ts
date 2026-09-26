@@ -1,5 +1,8 @@
 import {
+  computeTemporalScale,
+  formatSelectedTime,
   getImageCoordinates,
+  resolveColorScale,
   temperatureRgba,
   validateTemperatureSlice,
   type TemperatureSlice,
@@ -149,5 +152,115 @@ assertThrows(
   /irregular/,
   'irregular latitude',
 )
+
+// --- Fixed temporal color scale -------------------------------------------
+
+// Default behavior: no override resolves to the slice's own range.
+assertDeepEqual(
+  resolveColorScale(createSlice()),
+  { min: 1, max: 3 },
+  'resolveColorScale without override',
+)
+
+// A wider fixed temporal scale is accepted unchanged.
+assertDeepEqual(
+  resolveColorScale(createSlice(), { min: 0, max: 4 }),
+  { min: 0, max: 4 },
+  'resolveColorScale with fixed temporal scale',
+)
+
+// A constant scale (min === max) is valid; temperatureRgba maps it to 0.5.
+assertDeepEqual(
+  resolveColorScale(createSlice(), { min: 2, max: 2 }),
+  { min: 2, max: 2 },
+  'resolveColorScale constant scale',
+)
+
+assertThrows(
+  () => resolveColorScale(createSlice(), { min: 3, max: 1 }),
+  /inverted/,
+  'inverted fixed scale rejected',
+)
+assertThrows(
+  () => resolveColorScale(createSlice(), { min: Number.NaN, max: 3 }),
+  /non-finite/,
+  'non-finite fixed scale rejected',
+)
+
+// Identical values map to identical colors under a fixed scale, and the same
+// value keeps its color regardless of the per-slice range it came from.
+const fixedScale = { min: 0, max: 4 }
+assertDeepEqual(
+  temperatureRgba(2, fixedScale.min, fixedScale.max),
+  temperatureRgba(2, fixedScale.min, fixedScale.max),
+  'fixed scale deterministic coloring',
+)
+// Value 3 is the per-slice maximum of (1,3) but only 75% up the fixed (0,4)
+// scale, so the two normalizations must produce different colors.
+const sliceAColor = temperatureRgba(3, 1, 3)
+const sliceAFixedColor = temperatureRgba(3, fixedScale.min, fixedScale.max)
+if (JSON.stringify(sliceAColor) === JSON.stringify(sliceAFixedColor)) {
+  fail('fixed scale coloring: fixed scale should differ from per-slice scale here')
+}
+
+// Values outside a wider fixed scale clamp instead of wrapping.
+assertDeepEqual(
+  temperatureRgba(10, 0, 4),
+  temperatureRgba(4, 0, 4),
+  'fixed scale clamps high values',
+)
+assertDeepEqual(
+  temperatureRgba(-10, 0, 4),
+  temperatureRgba(0, 0, 4),
+  'fixed scale clamps low values',
+)
+
+// --- Temporal scale aggregation -------------------------------------------
+
+assertDeepEqual(
+  computeTemporalScale([
+    { tmin: 25.677, tmax: 31.07 },
+    { tmin: 25.672, tmax: 31.1 },
+  ]),
+  { min: 25.672, max: 31.1 },
+  'temporal scale is min of tmin and max of tmax',
+)
+
+assertDeepEqual(
+  computeTemporalScale([{ tmin: 20, tmax: 30 }]),
+  { min: 20, max: 30 },
+  'temporal scale with a single timestamp',
+)
+
+assertThrows(() => computeTemporalScale([]), /without any timestamps/, 'empty temporal scale')
+assertThrows(
+  () => computeTemporalScale([{ tmin: Number.NaN, tmax: 30 }]),
+  /non-finite/,
+  'non-finite temporal stats rejected',
+)
+assertThrows(
+  () => computeTemporalScale([{ tmin: 31, tmax: 30 }]),
+  /inverted/,
+  'inverted temporal stats rejected',
+)
+
+// --- Timestamp formatting ---------------------------------------------------
+
+assertEqual(
+  formatSelectedTime('2026-09-21T00:00:00.000000000'),
+  '2026-09-21 00:00',
+  'nanosecond timestamp formatting',
+)
+assertEqual(
+  formatSelectedTime('2026-09-21T06:30:00'),
+  '2026-09-21 06:30',
+  'minute-precision timestamp formatting',
+)
+assertEqual(
+  formatSelectedTime('2026-09-21T06:30:45'),
+  '2026-09-21 06:30:45',
+  'nonzero seconds retained',
+)
+assertEqual(formatSelectedTime('not a timestamp'), 'not a timestamp', 'unparseable passthrough')
 
 console.log('temperatureSlice scientific transform tests passed')

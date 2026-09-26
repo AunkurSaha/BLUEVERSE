@@ -27,7 +27,7 @@ dataset_registry = DatasetRegistry()
 # Register the available dataset
 import os
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'raw')
-DEFAULT_DATASET_PATH = os.path.join(DATA_DIR, 'bay_of_bengal_temperature.nc')
+DEFAULT_DATASET_PATH = os.path.join(DATA_DIR, 'bay_of_bengal_temperature_multitime.nc')
 if os.path.exists(DEFAULT_DATASET_PATH):
     dataset_registry.register(
         "bay-of-bengal-temperature",

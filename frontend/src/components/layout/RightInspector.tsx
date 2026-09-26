@@ -24,6 +24,9 @@ interface RightInspectorProps {
   error: string | null
   sliceLoading: boolean
   sliceError: string | null
+  colorScale: { min: number; max: number } | null
+  scaleLoading: boolean
+  previousTimeMean: number | null
 }
 
 const formatValue = (value: unknown): string => {
@@ -44,6 +47,9 @@ const RightInspector: React.FC<RightInspectorProps> = ({
   error,
   sliceLoading,
   sliceError,
+  colorScale,
+  scaleLoading,
+  previousTimeMean,
 }) => {
   const coordinates = metadata
     ? [
@@ -163,6 +169,32 @@ const RightInspector: React.FC<RightInspectorProps> = ({
                     { label: 'Minimum', value: `${formatNumber(slice.tmin)} ${displayUnit}` },
                     { label: 'Maximum', value: `${formatNumber(slice.tmax)} ${displayUnit}` },
                     { label: 'Mean', value: `${formatNumber(slice.tmean)} ${displayUnit}` },
+                    ...(previousTimeMean !== null
+                      ? [
+                          {
+                            label: 'Mean change',
+                            value: `${slice.tmean - previousTimeMean >= 0 ? '+' : ''}${formatNumber(slice.tmean - previousTimeMean)} ${displayUnit} vs previous timestamp`,
+                          },
+                        ]
+                      : []),
+                    ...(colorScale
+                      ? [
+                          {
+                            label: 'Color scale min',
+                            value: `${formatNumber(colorScale.min)} ${displayUnit}`,
+                          },
+                          {
+                            label: 'Color scale max',
+                            value: `${formatNumber(colorScale.max)} ${displayUnit}`,
+                          },
+                          {
+                            label: 'Color scale type',
+                            value: 'Fixed across all timestamps at this depth',
+                          },
+                        ]
+                      : scaleLoading
+                        ? [{ label: 'Color scale type', value: 'Computing temporal scale…' }]
+                        : []),
                   ].map((item) => (
                     <React.Fragment key={item.label}>
                       <dt className="text-slate-400">{item.label}</dt>

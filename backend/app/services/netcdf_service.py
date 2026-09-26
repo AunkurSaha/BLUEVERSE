@@ -205,8 +205,6 @@ class NetCDFService:
         # Get global attributes
         global_attrs = dict(ds.attrs)
         
-        ds.close()
-
         # Prepare depth values and units if depth coordinate is found
         depth_values = None
         depth_units = None
@@ -214,6 +212,19 @@ class NetCDFService:
             depth_coord = ds[depth_coord_name]
             depth_values = depth_coord.values.tolist()  # Convert to list of Python floats
             depth_units = depth_coord.attrs.get('units', '')
+
+        # Prepare time values and units if time coordinate is found
+        time_values = None
+        time_units = None
+        if time_coord_name is not None and time_coord_name in ds.coords:
+            time_coord = ds[time_coord_name]
+            # Convert time values to ISO format strings for JSON serialization
+            time_values = [str(t) for t in time_coord.values]
+            time_units = time_coord.attrs.get('units')
+            if time_units is None:
+                time_units = time_coord.encoding.get('units', '')
+
+        ds.close()
 
         return {
             'dataset_id': dataset_id,
@@ -233,7 +244,11 @@ class NetCDFService:
             # Additional fields for depth exploration
             'depth_coordinate_name': depth_coord_name,
             'depth_units': depth_units,
-            'depth_values': depth_values
+            'depth_values': depth_values,
+            # Additional fields for time exploration
+            'time_coordinate_name': time_coord_name,
+            'time_units': time_units,
+            'time_values': time_values
         }
 
     def get_slice(self, dataset_id: str, var_name: str, time_index: int, depth_index: int) -> Dict[str, Any]:
@@ -248,6 +263,13 @@ class NetCDFService:
         depth_count = metadata['dimensions']['depth']
         if depth_index < 0 or depth_index >= depth_count:
             raise ValueError(f"Depth index {depth_index} is out of range. Valid range is 0 to {depth_count-1} for dataset with {depth_count} depth levels.")
+
+        # Get metadata for time validation
+        time_coord_name = metadata['time_coordinate']
+        if time_coord_name is not None:
+            time_count = metadata['dimensions'].get(time_coord_name, 0)
+            if time_index < 0 or time_index >= time_count:
+                raise ValueError(f"Time index {time_index} is out of range. Valid range is 0 to {time_count-1} for dataset with {time_count} time steps.")
 
         file_path = dataset_info['file_path']
         try:

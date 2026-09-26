@@ -37,6 +37,13 @@ export interface PreparedTemperatureSlice {
   latAscending: boolean
   lonAscending: boolean
   imageDataUrl: string
+  /**
+   * Fixed color range used for rasterization. When provided, identical
+   * temperatures map to identical colors across all timestamps at a depth,
+   * which makes temporal change visually comparable. Per-slice statistics on
+   * `slice` (tmin/tmax/tmean) always remain the real current-slice values.
+   */
+  colorScale: { min: number; max: number } | null
 }
 
 export type TemperatureSliceFailureKind = 'empty' | 'invalid'
@@ -335,6 +342,7 @@ const createTemperatureDataUrl = (
   slice: TemperatureSlice,
   latAscending: boolean,
   lonAscending: boolean,
+  colorScale: { min: number; max: number },
 ): string => {
   const canvas = document.createElement('canvas')
   const width = slice.lon_vals.length
@@ -353,8 +361,8 @@ const createTemperatureDataUrl = (
     for (let longitudeIndex = 0; longitudeIndex < row.length; longitudeIndex += 1) {
       const [red, green, blue, alpha] = temperatureRgba(
         row[longitudeIndex],
-        slice.tmin,
-        slice.tmax,
+        colorScale.min,
+        colorScale.max,
       )
       const { x, y } = getImageCoordinates(
         latitudeIndex,
@@ -376,8 +384,63 @@ const createTemperatureDataUrl = (
   return canvas.toDataURL('image/png')
 }
 
-export const prepareTemperatureSlice = (slice: TemperatureSlice): PreparedTemperatureSlice => {
+/**
+ * Resolve the color range used for rasterization. Without an override the
+ * slice's own range is used; with a fixed temporal scale the override must be
+ * finite and ordered. DOM-free so it can be tested outside the browser.
+ */
+export const resolveColorScale = (
+  slice: TemperatureSlice,
+  colorScale?: { min: number; max: number },
+): { min: number; max: number } => {
+  if (colorScale === undefined) {
+    return { min: slice.tmin, max: slice.tmax }
+  }
+  if (
+    !isFiniteNumber(colorScale.min) ||
+    !isFiniteNumber(colorScale.max) ||
+    colorScale.min > colorScale.max
+  ) {
+    throw new TemperatureSliceValidationError(
+      'The fixed temporal color scale is missing, non-finite, or inverted.',
+    )
+  }
+  return colorScale
+}
+
+/**
+ * Compute the fixed temporal color scale for one depth from the real
+ * per-timestamp statistics: the minimum tmin and maximum tmax across all
+ * timestamps. No data is modified; this only widens the color mapping.
+ */
+export const computeTemporalScale = (
+  stats: Array<{ tmin: number; tmax: number }>,
+): { min: number; max: number } => {
+  if (stats.length === 0) {
+    throw new TemperatureSliceValidationError(
+      'Cannot compute a temporal color scale without any timestamps.',
+    )
+  }
+  for (const stat of stats) {
+    if (!isFiniteNumber(stat.tmin) || !isFiniteNumber(stat.tmax) || stat.tmin > stat.tmax) {
+      throw new TemperatureSliceValidationError(
+        'Per-timestamp statistics are non-finite or inverted; cannot compute a temporal scale.',
+      )
+    }
+  }
+  return {
+    min: Math.min(...stats.map((s) => s.tmin)),
+    max: Math.max(...stats.map((s) => s.tmax)),
+  }
+}
+
+export const prepareTemperatureSlice = (
+  slice: TemperatureSlice,
+  colorScale?: { min: number; max: number },
+): PreparedTemperatureSlice => {
   const validation = validateTemperatureSlice(slice)
+  const resolvedScale = resolveColorScale(slice, colorScale)
+
   return {
     slice,
     extent: validation.extent,
@@ -387,7 +450,9 @@ export const prepareTemperatureSlice = (slice: TemperatureSlice): PreparedTemper
       slice,
       validation.latAscending,
       validation.lonAscending,
+      resolvedScale,
     ),
+    colorScale: colorScale ?? null,
   }
 }
 

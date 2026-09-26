@@ -25,6 +25,10 @@ export interface DatasetMetadata {
   depth_coordinate_name: string | null
   depth_units: string | null
   depth_values: number[] | null
+  // Additional fields for time exploration
+  time_coordinate_name: string | null
+  time_units: string | null
+  time_values: string[] | null
 }
 
 interface JsonRequestOptions {

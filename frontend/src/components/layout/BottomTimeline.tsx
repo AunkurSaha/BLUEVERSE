@@ -11,6 +11,10 @@ interface BottomTimelineProps {
   temperatureLayer: PreparedTemperatureSlice | null
   sliceSelection: TemperatureSliceSelection | null
   timeLevels: number | null
+  timeValues: string[] | null
+  timeUnits: string | null
+  selectedTimeIndex: number
+  onTimeChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   depthLevels: number | null
   depthValues: number[] | null
   depthUnits: string | null
@@ -18,12 +22,18 @@ interface BottomTimelineProps {
   isLoading: boolean
   error: string | null
   onDepthChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  isPlaying: boolean
+  onPlayToggle: () => void
 }
 
 const BottomTimeline: React.FC<BottomTimelineProps> = ({
   temperatureLayer,
   sliceSelection,
   timeLevels,
+  timeValues,
+  timeUnits,
+  selectedTimeIndex,
+  onTimeChange,
   depthLevels,
   depthValues,
   depthUnits,
@@ -31,9 +41,17 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
   isLoading,
   error,
   onDepthChange,
+  isPlaying,
+  onPlayToggle,
 }) => {
   const slice = temperatureLayer?.slice ?? null
   const timeValue = slice ? formatSelectedTime(slice.actual_time) : null
+  // Human-facing timestamp: "2026-09-21 00:00" (raw backend value stays untouched).
+  const displayTime =
+    timeValue ??
+    (timeValues && timeValues[selectedTimeIndex] !== undefined
+      ? formatSelectedTime(timeValues[selectedTimeIndex])
+      : String(selectedTimeIndex))
   const depthValue = slice
     ? `${formatNumber(slice.actual_depth)} ${slice.depth_units}`
     : null
@@ -53,40 +71,53 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
     <footer className="shrink-0 border-t border-white/10 bg-[#08111f]">
       <div className="flex flex-col gap-2 px-3 py-2 sm:px-4 lg:flex-row lg:items-start lg:justify-between gap-x-6">
         <div className="flex min-w-0 items-center gap-2 flex-shrink-0">
-          <fieldset disabled>
-            <legend className="sr-only">Time playback</legend>
+          {/* Play/Pause button and time controls */}
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-md border border-white/15 bg-[#0b1524] px-2.5 py-1.5 text-sm font-medium text-slate-400 disabled:cursor-not-allowed"
-              aria-label="Play time animation"
+              onClick={onPlayToggle}
+              className={`rounded-md border border-white/15 bg-[#0b1524] px-2.5 py-1.5 text-sm font-medium text-slate-400 ${isPlaying ? 'bg-[#1e293b]' : ''}`}
+              aria-label={isPlaying ? 'Pause time animation' : 'Play time animation'}
             >
-              Play
+              {isPlaying ? 'Pause' : 'Play'}
             </button>
-          </fieldset>
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
-              Selected time
-            </p>
-            <p className="truncate text-sm font-medium text-slate-200">
-              {isLoading
-                ? 'Loading…'
-                : error
-                  ? error
-                  : timeValue ?? slice
-                    ? timeValue ?? 'Not available'
-                    : 'Waiting for slice'}
-            </p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
+                Selected time
+              </p>
+              <div className="flex items-center gap-2">
+                {/* Time slider */}
+                <input
+                  type="range"
+                  min={0}
+                  max={timeLevels !== null ? timeLevels - 1 : 0}
+                  step={1}
+                  value={selectedTimeIndex}
+                  onChange={onTimeChange}
+                  className="flex-1 bg-[#0b1524] sm:w-full"
+                  aria-label="Time selector"
+                  aria-valuemin={0}
+                  aria-valuemax={timeLevels !== null ? timeLevels - 1 : 0}
+                  aria-valuenow={selectedTimeIndex}
+                  aria-valuetext={displayTime}
+                />
+                {/* Selected time display */}
+                <div className="flex-shrink-0 whitespace-nowrap text-sm font-medium text-slate-200">
+                  {displayTime}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="flex min-w-0 items-center gap-2 flex-1">
-          <p className="text-xs text-slate-400">
+          <p className="whitespace-nowrap text-xs text-slate-400">
             {timeLevels === null
               ? 'Time levels pending'
-              : `${timeLevels} time ${timeLevels === 1 ? 'slice' : 'slices'} in source`}
+              : `time ${selectedTimeIndex + 1} of ${timeLevels}`}
           </p>
           <p className="shrink-0 text-[10px] font-medium tracking-[0.02em] text-slate-500">
-            Playback disabled
+            {isPlaying ? 'Playing' : 'Paused'}
           </p>
         </div>
 
@@ -94,7 +125,7 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
           <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
             Selected depth
           </p>
-          {depthValues && depthUnits ? (
+          {depthValues && depthUnits && depthLevels !== null ? (
             <>
               <input
                 type="range"
