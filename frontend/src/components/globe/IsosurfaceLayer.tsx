@@ -33,7 +33,7 @@ const IsosurfaceLayer: React.FC<Props> = ({ viewer, frame, opacity, verticalScal
     const primitive = viewer.scene.primitives.add(new Primitive({
       geometryInstances: new GeometryInstance({ geometry, id: { kind: 'temperature-isosurface', frame } }),
       appearance: new MaterialAppearance({ material: Material.fromType('Color', { color: Color.fromCssColorString('#f59e0b').withAlpha(opacity) }), translucent: opacity < 1, closed: false, faceForward: true }),
-      asynchronous: true,
+      asynchronous: false,
     }))
     const handler = interactive ? new ScreenSpaceEventHandler(viewer.scene.canvas) : null
     handler?.setInputAction((event: { position: Cartesian2 }) => {

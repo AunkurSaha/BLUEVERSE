@@ -1,11 +1,13 @@
 import xarray as xr
 import numpy as np
 import os
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 # Constants
 ACCEPTED_QC = {1, 2}
+logger = logging.getLogger(__name__)
 
 class ArgoService:
     def __init__(self, argo_data_dir: str = "data/raw/argo"):
@@ -60,7 +62,7 @@ class ArgoService:
         try:
             ds = xr.open_dataset(file_path, engine="netcdf4")
         except Exception as e:
-            print(f"Warning: Could not open {file_path}: {e}")
+            logger.warning("Could not open Argo file %s: %s", file_path, e)
             return None
 
         # Check if N_PROF dimension exists

@@ -2,6 +2,7 @@ import React from 'react'
 
 import {
   cividisCssGradient,
+  divergingCssGradient,
   formatDisplayUnit,
   formatNumber,
   type PreparedTemperatureSlice,
@@ -26,7 +27,7 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ oceanLayer, timeL
   }
 
   const layer = oceanLayer.data
-  const { slice, colorScale } = layer
+  const { slice, colorScale, colorMap } = layer
   const unit = formatDisplayUnit(slice.var_units)
   // The legend shows the color scale actually used for rasterization: the fixed
   // temporal scale when available, otherwise the per-slice range.
@@ -34,29 +35,35 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ oceanLayer, timeL
   const scaleMax = colorScale ? colorScale.max : slice.tmax
   const minimum = formatNumber(scaleMin)
   const maximum = formatNumber(scaleMax)
+  const variableLabel = slice.var_name === 'thetao' ? 'Temperature' : slice.var_name === 'so' ? 'Salinity' : 'Variable'
 
   return (
     <figure
-      aria-label={`Temperature color scale from ${minimum} to ${maximum} ${unit}`}
+      aria-label={`${variableLabel} color scale from ${minimum} to ${maximum} ${unit}`}
       className="pointer-events-none absolute bottom-3 right-3 z-10 w-[min(15rem,calc(100%-1.5rem))] rounded-lg border border-white/12 bg-[#07101e]/95 p-3 shadow-[0_10px_30px_rgba(2,6,13,0.5)] sm:bottom-4 sm:right-4"
     >
       <figcaption className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-300">
-        {slice.var_name === 'thetao' ? 'Temperature' : slice.var_name === 'so' ? 'Salinity' : 'Variable'}
+        {variableLabel}
       </figcaption>
       <div
         aria-hidden="true"
         className="mt-2 h-2.5 w-full rounded-full border border-black/30"
-        style={{ backgroundImage: cividisCssGradient() }}
+        style={{ backgroundImage: colorMap === 'diverging' ? divergingCssGradient() : cividisCssGradient() }}
       />
       <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-slate-300">
         <span className="font-mono">{minimum}</span>
         <span className="min-w-0 truncate">{unit}</span>
         <span className="font-mono">{maximum}</span>
       </div>
-      {colorScale && (
+      {colorScale && colorMap === 'sequential' && (
         <p className="mt-1.5 text-[10px] leading-relaxed text-cyan-200/70">
-          Temporal comparison scale — fixed across{' '}
+          Temporal comparison scale, fixed across{' '}
           {timeLevels !== null ? `${timeLevels} timestamps` : 'all timestamps'} at this depth.
+        </p>
+      )}
+      {colorMap === 'diverging' && (
+        <p className="mt-1.5 text-[10px] leading-relaxed text-cyan-200/70">
+          Symmetric phase-difference scale centered at zero.
         </p>
       )}
       <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">

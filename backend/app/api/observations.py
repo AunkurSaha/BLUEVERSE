@@ -101,7 +101,7 @@ def list_glider_missions():
     Get summaries of all discoverable Glider missions.
     """
     try:
-        # For now, we only have one hardcoded mission
+        # The current audited registry contains one real Spray glider mission.
         return glider_service.list_missions()
     except Exception as e:
         logger.error(f"Error listing glider missions: {e}")

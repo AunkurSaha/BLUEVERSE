@@ -44,6 +44,7 @@ export interface PreparedTemperatureSlice {
    * `slice` (tmin/tmax/tmean) always remain the real current-slice values.
    */
   colorScale: { min: number; max: number } | null
+  colorMap: 'sequential' | 'diverging'
 }
 
 export type TemperatureSliceFailureKind = 'empty' | 'invalid'
@@ -68,6 +69,18 @@ const cividisStops: Array<[number, number, number]> = [
   [188, 174, 108],
   [222, 201, 88],
   [254, 232, 56],
+]
+
+const divergingStops: Array<[number, number, number]> = [
+  [49, 54, 149],
+  [69, 117, 180],
+  [116, 173, 209],
+  [171, 217, 233],
+  [247, 247, 247],
+  [253, 174, 107],
+  [244, 109, 67],
+  [215, 48, 39],
+  [165, 0, 38],
 ]
 
 const isFiniteNumber = (value: unknown): value is number =>
@@ -294,10 +307,11 @@ export const validateTemperatureSlice = (slice: TemperatureSlice): {
   }
 }
 
-export const temperatureRgba = (
+const colorFromStops = (
   value: number | null,
   minimum: number,
   maximum: number,
+  stops: Array<[number, number, number]>,
 ): [number, number, number, number] => {
   if (value === null) return [0, 0, 0, 0]
   if (!isFiniteNumber(value) || !isFiniteNumber(minimum) || !isFiniteNumber(maximum)) {
@@ -308,15 +322,15 @@ export const temperatureRgba = (
     maximum === minimum
       ? 0.5
       : Math.min(1, Math.max(0, (value - minimum) / (maximum - minimum)))
-  const scaledPosition = normalized * (cividisStops.length - 1)
+  const scaledPosition = normalized * (stops.length - 1)
   const lowerIndex = Math.min(
-    cividisStops.length - 2,
+    stops.length - 2,
     Math.max(0, Math.floor(scaledPosition)),
   )
   const upperIndex = lowerIndex + 1
   const fraction = scaledPosition - lowerIndex
-  const lower = cividisStops[lowerIndex]
-  const upper = cividisStops[upperIndex]
+  const lower = stops[lowerIndex]
+  const upper = stops[upperIndex]
 
   return [
     Math.round(lower[0] + (upper[0] - lower[0]) * fraction),
@@ -325,6 +339,18 @@ export const temperatureRgba = (
     255,
   ]
 }
+
+export const temperatureRgba = (
+  value: number | null,
+  minimum: number,
+  maximum: number,
+): [number, number, number, number] => colorFromStops(value, minimum, maximum, cividisStops)
+
+export const differenceRgba = (
+  value: number | null,
+  minimum: number,
+  maximum: number,
+): [number, number, number, number] => colorFromStops(value, minimum, maximum, divergingStops)
 
 export const getImageCoordinates = (
   latitudeIndex: number,
@@ -343,6 +369,7 @@ const createTemperatureDataUrl = (
   latAscending: boolean,
   lonAscending: boolean,
   colorScale: { min: number; max: number },
+  colorMap: 'sequential' | 'diverging',
 ): string => {
   const canvas = document.createElement('canvas')
   const width = slice.lon_vals.length
@@ -359,7 +386,7 @@ const createTemperatureDataUrl = (
   for (let latitudeIndex = 0; latitudeIndex < slice.slice_data.length; latitudeIndex += 1) {
     const row = slice.slice_data[latitudeIndex]
     for (let longitudeIndex = 0; longitudeIndex < row.length; longitudeIndex += 1) {
-      const [red, green, blue, alpha] = temperatureRgba(
+      const [red, green, blue, alpha] = (colorMap === 'diverging' ? differenceRgba : temperatureRgba)(
         row[longitudeIndex],
         colorScale.min,
         colorScale.max,
@@ -437,6 +464,7 @@ export const computeTemporalScale = (
 export const prepareTemperatureSlice = (
   slice: TemperatureSlice,
   colorScale?: { min: number; max: number },
+  colorMap: 'sequential' | 'diverging' = 'sequential',
 ): PreparedTemperatureSlice => {
   const validation = validateTemperatureSlice(slice)
   const resolvedScale = resolveColorScale(slice, colorScale)
@@ -451,8 +479,10 @@ export const prepareTemperatureSlice = (
       validation.latAscending,
       validation.lonAscending,
       resolvedScale,
+      colorMap,
     ),
     colorScale: colorScale ?? null,
+    colorMap,
   }
 }
 
@@ -461,8 +491,17 @@ export const cividisCssGradient = (): string =>
     .map(([red, green, blue]) => `rgb(${red}, ${green}, ${blue})`)
     .join(', ')})`
 
+export const divergingCssGradient = (): string =>
+  `linear-gradient(to right, ${divergingStops
+    .map(([red, green, blue]) => `rgb(${red}, ${green}, ${blue})`)
+    .join(', ')})`
+
 export const formatDisplayUnit = (sourceUnit: string): string =>
-  sourceUnit === 'degrees_C' ? '°C' : sourceUnit
+  sourceUnit === 'degrees_C'
+    ? '°C'
+    : sourceUnit === 'degrees_C difference'
+      ? '°C difference'
+      : sourceUnit
 
 export const formatNumber = (value: number, fractionDigits = 3): string =>
   value.toLocaleString(undefined, {

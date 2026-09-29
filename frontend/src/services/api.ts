@@ -4,7 +4,7 @@ const API_BASE = '/api'
 
 export type Dataset = string
 
-export type DatasetKind = 'model_grid' | 'observation_trajectory'
+export type DatasetKind = 'model_grid' | 'historical_model_grid' | 'observation_trajectory'
 
 export interface DatasetCatalogEntry {
   id: string

@@ -31,6 +31,8 @@ interface BottomTimelineProps {
   onDepthChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   isPlaying: boolean
   onPlayToggle: () => void
+  timeControlEnabled?: boolean
+  timeContextLabel?: string | null
 }
 
 const BottomTimeline: React.FC<BottomTimelineProps> = ({
@@ -50,6 +52,8 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
   onDepthChange,
   isPlaying,
   onPlayToggle,
+  timeControlEnabled = true,
+  timeContextLabel = null,
 }) => {
   // Get the slice data for display (scalar or vector components)
   const getSliceData = () => {
@@ -86,15 +90,16 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
     : null
 
   return (
-    <footer className="shrink-0 border-t border-white/10 bg-[#08111f]">
-      <div className="flex flex-col gap-2 px-3 py-2 sm:px-4 lg:flex-row lg:items-start lg:justify-between gap-x-6">
-        <div className="flex min-w-0 items-center gap-2 flex-shrink-0">
+    <footer className="min-w-0 shrink-0 border-t border-white/10 bg-[#08111f]">
+      <div className="flex min-w-0 flex-col gap-2 px-3 py-2 sm:px-4 lg:flex-row lg:items-start lg:justify-between lg:gap-x-6">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap">
           {/* Play/Pause button and time controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
               onClick={onPlayToggle}
-              className={`rounded-md border border-white/15 bg-[#0b1524] px-2.5 py-1.5 text-sm font-medium text-slate-400 ${isPlaying ? 'bg-[#1e293b]' : ''}`}
+              disabled={!timeControlEnabled}
+              className={`rounded-md border border-white/15 bg-[#0b1524] px-2.5 py-1.5 text-sm font-medium text-slate-400 disabled:cursor-not-allowed disabled:opacity-40 ${isPlaying ? 'bg-[#1e293b]' : ''}`}
               aria-label={isPlaying ? 'Pause time animation' : 'Play time animation'}
             >
               {isPlaying ? 'Pause' : 'Play'}
@@ -103,7 +108,7 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
               <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
                 Selected time
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 {/* Time slider */}
                 <input
                   type="range"
@@ -112,7 +117,8 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
                   step={1}
                   value={selectedTimeIndex}
                   onChange={onTimeChange}
-                  className="flex-1 bg-[#0b1524] sm:w-full"
+                  disabled={!timeControlEnabled}
+                  className="min-w-0 flex-1 bg-[#0b1524] sm:w-full"
                   aria-label="Time selector"
                   aria-valuemin={0}
                   aria-valuemax={timeLevels !== null ? timeLevels - 1 : 0}
@@ -121,15 +127,17 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
                 />
                 {/* Selected time display */}
                 <div className="flex-shrink-0 whitespace-nowrap text-sm font-medium text-slate-200">
-                  {displayTime}
+                  {timeContextLabel ?? displayTime}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex min-w-0 items-center gap-2 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:flex-1">
             <p className="whitespace-nowrap text-xs text-slate-400">
-              {timeLevels === null
+              {!timeControlEnabled && timeContextLabel
+                ? 'Derived from source dates'
+                : timeLevels === null
                 ? 'Time levels pending'
                 : `time ${selectedTimeIndex + 1} of ${timeLevels}`}
             </p>
@@ -138,7 +146,7 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-2 flex-shrink-0">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
             <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
               Selected depth
             </p>
@@ -151,7 +159,7 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
                   step={1}
                   value={selectedDepthIndex}
                   onChange={onDepthChange}
-                  className="flex-1 bg-[#0b1524] sm:w-full"
+                  className="w-full min-w-0 flex-1 bg-[#0b1524] sm:w-full"
                   aria-label="Depth selector"
                   aria-valuemin={0}
                   aria-valuemax={depthLevels - 1}
@@ -171,7 +179,7 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
                   ) : (
                     <>
                       <p className="truncate">Waiting for depth data…</p>
-                      <p>level — of {depthLevels}</p>
+                      <p>level unavailable of {depthLevels}</p>
                     </>
                   )}
                 </div>

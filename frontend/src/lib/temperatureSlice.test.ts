@@ -1,5 +1,6 @@
 import {
   computeTemporalScale,
+  differenceRgba,
   formatSelectedTime,
   getImageCoordinates,
   resolveColorScale,
@@ -62,6 +63,9 @@ const createSlice = (): TemperatureSlice => ({
   tmean: 2,
   var_name: 'thetao',
 })
+
+assertDeepEqual(differenceRgba(0, -2, 2), [247, 247, 247, 255], 'Difference zero uses the neutral center color')
+assertDeepEqual(differenceRgba(null, -2, 2), [0, 0, 0, 0], 'Missing difference remains transparent')
 
 const withDimensionOrder = (dimensionOrder: unknown): TemperatureSlice =>
   ({ ...createSlice(), dimension_order: dimensionOrder }) as TemperatureSlice

@@ -26,6 +26,10 @@ for (const count of SUBSURFACE_LAYER_COUNTS) {
 equal(displayHeightForDepth(4833.291015625, 10), -48332.91015625, 'display height preserves real depth')
 equal(displayHeightForDepth(100, 1), -100, 'one-times vertical scale')
 equal(sliceCacheKey('dataset', 'thetao', 3, 14), 'dataset-thetao-3-14', 'cache key identity')
+assert(
+  sliceCacheKey('bay-of-bengal-temperature', 'thetao', 0, 0) !== sliceCacheKey('arabian-sea-temperature', 'thetao', 0, 0),
+  'same time and depth remain isolated by dataset',
+)
 
 const sharedScale = sharedFrameColorScale([
   { tmin: 10, tmax: 20 },

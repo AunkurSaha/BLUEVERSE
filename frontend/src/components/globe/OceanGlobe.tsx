@@ -27,6 +27,14 @@ import type { SubsurfaceFrame, SubsurfaceSample } from '../../lib/subsurfaceFram
 import IsosurfaceLayer, { type IsosurfaceFrame, type IsosurfaceSample } from './IsosurfaceLayer'
 import TransectLayer from './TransectLayer'
 import type { GeoPoint, ModelDomain } from '../../lib/transect'
+import OceanProbeLayer from './OceanProbeLayer'
+import type { ProbeLocation } from '../../lib/oceanProbe'
+import AlertLayer from './AlertLayer'
+import type { ArgoProfileAlertSummary } from '../../services/alertApi'
+import type { RegionBounds, RegionSummary } from '../../services/regionApi'
+import StudyRegionLayer from './StudyRegionLayer'
+import HistoricalEventLayer from './HistoricalEventLayer'
+import type { HistoricalEventTrack } from '../../services/eventApi'
 
 interface ArgoHoverState {
   profile: ArgoProfileSummary
@@ -34,6 +42,9 @@ interface ArgoHoverState {
 }
 
 interface OceanGlobeProps {
+  selectedRegion: RegionSummary | null
+  modelBounds: RegionBounds | null
+  scientificLayersVisible: boolean
   oceanLayer: {
     type: 'scalar'
     data: PreparedTemperatureSlice
@@ -46,6 +57,10 @@ interface OceanGlobeProps {
   argoVisible: boolean
   selectedArgoId: string | null
   onArgoSelect: (profileId: string) => void
+  alertSummaries: ArgoProfileAlertSummary[]
+  alertsVisible: boolean
+  selectedAlertProfileId: string | null
+  onAlertSelect: (profileId: string) => void
   getCurrentSpeed: (uoValue: number, voValue: number) => number
   gliderPoints: GliderPoint[]
   gliderVisible: boolean
@@ -64,6 +79,15 @@ interface OceanGlobeProps {
   transectDomain: ModelDomain | null
   onTransectPoint: (point: GeoPoint) => void
   onTransectError: (message: string) => void
+  probeEnabled: boolean
+  probeLocation: ProbeLocation | null
+  probeDomain: ModelDomain | null
+  onProbeSelect: (location: ProbeLocation) => void
+  onProbeError: (message: string) => void
+  historicalEventTrack: HistoricalEventTrack | null
+  historicalEventVisible: boolean
+  selectedHistoricalPointIndex: number
+  onHistoricalPointSelect: (index: number) => void
 }
 
 const formatTooltipTime = (value: string | null): string => {
@@ -73,21 +97,31 @@ const formatTooltipTime = (value: string | null): string => {
 }
 
 const OceanGlobe: React.FC<OceanGlobeProps> = ({
+  selectedRegion,
+  modelBounds,
+  scientificLayersVisible,
   oceanLayer,
   argoProfiles,
   argoVisible,
   selectedArgoId,
   onArgoSelect,
+  alertSummaries,
+  alertsVisible,
+  selectedAlertProfileId,
+  onAlertSelect,
   getCurrentSpeed,
   gliderPoints, gliderVisible, selectedGliderIndex, onGliderSelect,
   subsurfaceFrame, verticalExaggeration, subsurfaceOpacity, onSubsurfaceSample,
   isosurfaceFrame, isosurfaceOpacity, onIsosurfaceSample,
   transectStart, transectEnd, transectDrawMode, transectDomain, onTransectPoint, onTransectError,
+  probeEnabled, probeLocation, probeDomain, onProbeSelect, onProbeError,
+  historicalEventTrack, historicalEventVisible, selectedHistoricalPointIndex, onHistoricalPointSelect,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<Viewer | null>(null)
   const [viewerReady, setViewerReady] = React.useState(false)
   const [argoHover, setArgoHover] = React.useState<ArgoHoverState | null>(null)
+  const analysisClickActive = transectDrawMode || probeEnabled
   // Store vector visualization entities for cleanup
   const vectorEntitiesRef = useRef<Entity[]>([])
 
@@ -136,7 +170,7 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
   // Handle scalar layer (temperature/salinity) - existing raster imagery
   useEffect(() => {
     const viewer = viewerRef.current
-    if (!viewer || !oceanLayer || oceanLayer.type !== 'scalar') return
+    if (!viewer || !scientificLayersVisible || !oceanLayer || oceanLayer.type !== 'scalar') return
 
     const layer = oceanLayer.data
     const providerPromise = SingleTileImageryProvider.fromUrl(
@@ -162,12 +196,12 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
         viewer.imageryLayers.remove(imageryLayer, true)
       }
     }
-  }, [oceanLayer])
+  }, [oceanLayer, scientificLayersVisible])
 
   // Handle vector layer (currents) - draw vector arrows
   useEffect(() => {
     const viewer = viewerRef.current
-    if (!viewer || !oceanLayer || oceanLayer.type !== 'vector') {
+    if (!viewer || !scientificLayersVisible || !oceanLayer || oceanLayer.type !== 'vector') {
       // Clean up any existing vector visualization
       if (viewer !== null && vectorEntitiesRef.current) {
         vectorEntitiesRef.current.forEach(entity => {
@@ -187,6 +221,12 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
 
     // Verify slices are compatible
     if (
+      uoSlice.var_name !== 'uo' ||
+      voSlice.var_name !== 'vo' ||
+      uoSlice.actual_time !== voSlice.actual_time ||
+      uoSlice.actual_depth !== voSlice.actual_depth ||
+      uoSlice.depth_units !== voSlice.depth_units ||
+      uoSlice.var_units !== voSlice.var_units ||
       uoSlice.lat_vals.length !== voSlice.lat_vals.length ||
       uoSlice.lon_vals.length !== voSlice.lon_vals.length ||
       !arrayEqual(uoSlice.lat_vals, voSlice.lat_vals) ||
@@ -212,7 +252,7 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
         const voValue = voSlice.slice_data[latIdx]?.[lonIdx] ?? null
 
         // Skip if either component is missing/invalid
-        if (uoValue === null || voValue === null || typeof uoValue !== 'number' || typeof voValue !== 'number') {
+        if (uoValue === null || voValue === null || !Number.isFinite(uoValue) || !Number.isFinite(voValue)) {
           continue
         }
 
@@ -255,7 +295,7 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
         vectorEntitiesRef.current = []
       }
     }
-  }, [oceanLayer, getCurrentSpeed])
+  }, [oceanLayer, getCurrentSpeed, scientificLayersVisible])
 
   // Helper to check array equality
   function arrayEqual(arr1: number[], arr2: number[]): boolean {
@@ -270,28 +310,56 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
     <div className="relative h-full min-h-0 w-full min-w-0">
       <div ref={containerRef} className="h-full min-h-0 w-full min-w-0" />
       {viewerReady && (
+        <StudyRegionLayer
+          viewer={viewerRef.current}
+          region={selectedRegion}
+          modelBounds={modelBounds}
+        />
+      )}
+      {viewerReady && (
+        <HistoricalEventLayer
+          viewer={viewerRef.current}
+          track={historicalEventTrack}
+          visible={historicalEventVisible}
+          selectedPointIndex={selectedHistoricalPointIndex}
+          onSelect={onHistoricalPointSelect}
+          interactive={!analysisClickActive}
+        />
+      )}
+      {viewerReady && (
         <ArgoLayer
           viewer={viewerRef.current}
           profiles={argoProfiles}
-          visible={argoVisible}
+          visible={scientificLayersVisible && argoVisible}
           selectedProfileId={selectedArgoId}
           onSelect={onArgoSelect}
           onHover={(profile, position) =>
             setArgoHover(profile && position ? { profile, position } : null)
           }
-          interactive={!transectDrawMode}
+          interactive={!analysisClickActive}
         />
       )}
-      {viewerReady && <IsosurfaceLayer viewer={viewerRef.current} frame={isosurfaceFrame} opacity={isosurfaceOpacity} verticalScale={verticalExaggeration} interactive={!transectDrawMode} onSample={onIsosurfaceSample} />}
-      {viewerReady && <GliderLayer viewer={viewerRef.current} points={gliderPoints} visible={gliderVisible} selected={selectedGliderIndex} onSelect={onGliderSelect} onHover={()=>{}} interactive={!transectDrawMode} />}
-      {viewerReady && <TransectLayer viewer={viewerRef.current} start={transectStart} end={transectEnd} drawMode={transectDrawMode} domain={transectDomain} onPoint={onTransectPoint} onError={onTransectError} />}
       {viewerReady && (
+        <AlertLayer
+          viewer={viewerRef.current}
+          summaries={alertSummaries}
+          visible={scientificLayersVisible && alertsVisible}
+          selectedProfileId={selectedAlertProfileId}
+          onSelect={onAlertSelect}
+          interactive={!analysisClickActive}
+        />
+      )}
+      {viewerReady && <IsosurfaceLayer viewer={viewerRef.current} frame={scientificLayersVisible ? isosurfaceFrame : null} opacity={isosurfaceOpacity} verticalScale={verticalExaggeration} interactive={!analysisClickActive} onSample={onIsosurfaceSample} />}
+      {viewerReady && <GliderLayer viewer={viewerRef.current} points={gliderPoints} visible={scientificLayersVisible && gliderVisible} selected={selectedGliderIndex} onSelect={onGliderSelect} onHover={()=>{}} interactive={!analysisClickActive} />}
+      {viewerReady && <TransectLayer viewer={viewerRef.current} start={scientificLayersVisible ? transectStart : null} end={scientificLayersVisible ? transectEnd : null} drawMode={transectDrawMode} domain={transectDomain} onPoint={onTransectPoint} onError={onTransectError} />}
+      {viewerReady && <OceanProbeLayer viewer={viewerRef.current} active={probeEnabled} location={scientificLayersVisible ? probeLocation : null} domain={probeDomain} onSelect={onProbeSelect} onError={onProbeError} />}
+      {viewerReady && scientificLayersVisible && (
         <SubsurfaceLayer
           viewer={viewerRef.current}
           frame={subsurfaceFrame}
           verticalExaggeration={verticalExaggeration}
           opacity={subsurfaceOpacity}
-          interactive={!transectDrawMode}
+          interactive={!analysisClickActive}
           onSample={onSubsurfaceSample}
         />
       )}

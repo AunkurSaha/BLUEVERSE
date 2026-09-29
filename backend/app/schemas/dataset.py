@@ -6,7 +6,7 @@ class DatasetCatalogEntry(BaseModel):
     """A registry entry suitable for choosing a data source in the UI."""
 
     id: str
-    dataset_kind: Literal["model_grid", "observation_trajectory"]
+    dataset_kind: Literal["model_grid", "historical_model_grid", "observation_trajectory"]
     description: Optional[str] = None
 
 class DatasetProvenance(BaseModel):

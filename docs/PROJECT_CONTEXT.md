@@ -1,8 +1,8 @@
-# Project Context — SIH26067
+# Project Context: SIH26067
 
 ## Problem Statement
 
-**SIH26067 — Ministry of Earth Sciences / INCOIS**
+**SIH26067: Ministry of Earth Sciences / INCOIS**
 
 Develop a web-based interactive 3D visualization platform integrating numerical ocean-model outputs and in-situ observations.
 
@@ -55,7 +55,7 @@ This is not primarily a general-public weather app.
 
 ## Core Product Capabilities
 
-### P0 — Must Work
+### P0: Must Work
 1. open real ocean-model data;
 2. inspect metadata;
 3. display a variable geographically;
@@ -65,7 +65,7 @@ This is not primarily a general-public weather app.
 7. inspect an observation profile;
 8. compare model and observation at compatible location/time/depth.
 
-### P1 — Important
+### P1: Important
 1. current vectors/particles;
 2. scientific color controls;
 3. vertical section;
@@ -73,7 +73,7 @@ This is not primarily a general-public weather app.
 5. dataset catalogue and metadata;
 6. export/share analysis state where feasible.
 
-### P2 — Differentiators
+### P2: Differentiators
 1. interactive ocean "X-ray" slicing;
 2. true subsurface/volume rendering;
 3. 3D Argo/glider trajectory visualization;

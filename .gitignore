@@ -31,6 +31,8 @@ data/processed/*
 data/cache/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/processed/events/
+!data/processed/events/cyclone-amphan-2020.json
 !data/cache/.gitkeep
 
 # Common large scientific formats
@@ -49,3 +51,15 @@ data/cache/*
 outputs/
 artifacts/
 coverage/
+
+# Local agent/session state and transient audit output
+/.claude/settings.local.json
+/.tmp_*
+*.backup
+*.log
+/temp_argo/
+/frontend/tmp/
+
+# Local Impeccable engine binaries (launchers use user cache/download fallback)
+/.agents/skills/impeccable/scripts/bin/windows-x64/impeccable.exe
+/.claude/skills/impeccable/scripts/bin/windows-x64/impeccable.exe
