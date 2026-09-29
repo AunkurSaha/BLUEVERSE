@@ -1,0 +1,71 @@
+from pydantic import BaseModel
+from typing import List, Optional
+
+class ArgoProfileLevel(BaseModel):
+    level_index: int
+    pressure_dbar: Optional[float]
+    depth_m: Optional[float]
+    in_situ_temperature_c: Optional[float]
+    potential_temperature_c: Optional[float]
+    practical_salinity: Optional[float]
+    pressure_qc: Optional[int]
+    temperature_qc: Optional[int]
+    salinity_qc: Optional[int]
+    usable: bool
+
+class ArgoProfileSummary(BaseModel):
+    profile_id: str
+    platform_number: str
+    cycle_number: str
+    observation_time: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    data_mode: Optional[str]
+    direction: Optional[str]
+    sampling_scheme: Optional[str]
+    level_count: int
+    usable_level_count: int
+    pressure_min_dbar: Optional[float]
+    pressure_max_dbar: Optional[float]
+    depth_min_m: Optional[float]
+    depth_max_m: Optional[float]
+    temperature_min_c: Optional[float]
+    temperature_max_c: Optional[float]
+    salinity_min: Optional[float]
+    salinity_max: Optional[float]
+    pressure_source: str
+    temperature_source: str
+    salinity_source: str
+    provider: str
+    source_format: str
+    standard: str
+    provenance: dict
+
+class ArgoProfileDetail(BaseModel):
+    profile_id: str
+    platform_number: str
+    cycle_number: str
+    observation_time: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    data_mode: Optional[str]
+    direction: Optional[str]
+    sampling_scheme: Optional[str]
+    level_count: int
+    usable_level_count: int
+    pressure_min_dbar: Optional[float]
+    pressure_max_dbar: Optional[float]
+    depth_min_m: Optional[float]
+    depth_max_m: Optional[float]
+    temperature_min_c: Optional[float]
+    temperature_max_c: Optional[float]
+    salinity_min: Optional[float]
+    salinity_max: Optional[float]
+    pressure_source: str
+    temperature_source: str
+    salinity_source: str
+    provider: str
+    source_format: str
+    standard: str
+    provenance: dict
+    levels: List[ArgoProfileLevel]

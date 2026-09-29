@@ -8,7 +8,14 @@ import {
 import type { TemperatureSliceSelection } from './RightInspector'
 
 interface BottomTimelineProps {
-  temperatureLayer: PreparedTemperatureSlice | null
+  oceanLayer: {
+    type: 'scalar'
+    data: PreparedTemperatureSlice
+  } | {
+    type: 'vector'
+    uo: PreparedTemperatureSlice
+    vo: PreparedTemperatureSlice
+  } | null
   sliceSelection: TemperatureSliceSelection | null
   timeLevels: number | null
   timeValues: string[] | null
@@ -27,7 +34,7 @@ interface BottomTimelineProps {
 }
 
 const BottomTimeline: React.FC<BottomTimelineProps> = ({
-  temperatureLayer,
+  oceanLayer,
   sliceSelection,
   timeLevels,
   timeValues,
@@ -44,7 +51,18 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
   isPlaying,
   onPlayToggle,
 }) => {
-  const slice = temperatureLayer?.slice ?? null
+  // Get the slice data for display (scalar or vector components)
+  const getSliceData = () => {
+    if (!oceanLayer) return null
+    if (oceanLayer.type === 'scalar') {
+      return oceanLayer.data.slice
+    } else {
+      // For vector timeline, we'll show uo component info primarily
+      return oceanLayer.uo.slice
+    }
+  }
+
+  const slice = getSliceData()
   const timeValue = slice ? formatSelectedTime(slice.actual_time) : null
   // Human-facing timestamp: "2026-09-21 00:00" (raw backend value stays untouched).
   const displayTime =
@@ -108,68 +126,68 @@ const BottomTimeline: React.FC<BottomTimelineProps> = ({
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex min-w-0 items-center gap-2 flex-1">
-          <p className="whitespace-nowrap text-xs text-slate-400">
-            {timeLevels === null
-              ? 'Time levels pending'
-              : `time ${selectedTimeIndex + 1} of ${timeLevels}`}
-          </p>
-          <p className="shrink-0 text-[10px] font-medium tracking-[0.02em] text-slate-500">
-            {isPlaying ? 'Playing' : 'Paused'}
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center gap-2 flex-shrink-0">
-          <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
-            Selected depth
-          </p>
-          {depthValues && depthUnits && depthLevels !== null ? (
-            <>
-              <input
-                type="range"
-                min={0}
-                max={depthLevels - 1}
-                step={1}
-                value={selectedDepthIndex}
-                onChange={onDepthChange}
-                className="flex-1 bg-[#0b1524] sm:w-full"
-                aria-label="Depth selector"
-                aria-valuemin={0}
-                aria-valuemax={depthLevels - 1}
-                aria-valuenow={selectedDepthIndex}
-                aria-valuetext={`${actualDepthFromValues?.toFixed(3)} meters, level ${selectedDepthIndex + 1} of ${depthLevels}`}
-              />
-              <div className="flex flex-col items-center text-sm font-medium text-slate-200 flex-shrink-0">
-                {actualDepthFromValues !== null ? (
-                  <>
-                    <p className="truncate">
-                      {actualDepthFromValues.toFixed(3)} m
-                    </p>
-                    <p>
-                      level {selectedDepthIndex + 1} of {depthLevels}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="truncate">Waiting for depth data…</p>
-                    <p>level — of {depthLevels}</p>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="truncate text-sm font-medium text-slate-200">
-              {isLoading
-                ? 'Loading…'
-                : error
-                  ? error
-                  : depthValue
-                    ? `${depthValue} · ${depthLevelValue ?? 'level not available'}`
-                    : 'Waiting for slice'}
+          <div className="flex min-w-0 items-center gap-2 flex-1">
+            <p className="whitespace-nowrap text-xs text-slate-400">
+              {timeLevels === null
+                ? 'Time levels pending'
+                : `time ${selectedTimeIndex + 1} of ${timeLevels}`}
             </p>
-          )}
+            <p className="shrink-0 text-[10px] font-medium tracking-[0.02em] text-slate-500">
+              {isPlaying ? 'Playing' : 'Paused'}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-2 flex-shrink-0">
+            <p className="text-[10px] font-medium uppercase tracking-[0.04em] text-slate-500">
+              Selected depth
+            </p>
+            {depthValues && depthUnits && depthLevels !== null ? (
+              <>
+                <input
+                  type="range"
+                  min={0}
+                  max={depthLevels - 1}
+                  step={1}
+                  value={selectedDepthIndex}
+                  onChange={onDepthChange}
+                  className="flex-1 bg-[#0b1524] sm:w-full"
+                  aria-label="Depth selector"
+                  aria-valuemin={0}
+                  aria-valuemax={depthLevels - 1}
+                  aria-valuenow={selectedDepthIndex}
+                  aria-valuetext={`${actualDepthFromValues?.toFixed(3)} meters, level ${selectedDepthIndex + 1} of ${depthLevels}`}
+                />
+                <div className="flex flex-col items-center text-sm font-medium text-slate-200 flex-shrink-0">
+                  {actualDepthFromValues !== null ? (
+                    <>
+                      <p className="truncate">
+                        {actualDepthFromValues.toFixed(3)} m
+                      </p>
+                      <p>
+                        level {selectedDepthIndex + 1} of {depthLevels}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="truncate">Waiting for depth data…</p>
+                      <p>level — of {depthLevels}</p>
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="truncate text-sm font-medium text-slate-200">
+                {isLoading
+                  ? 'Loading…'
+                  : error
+                    ? error
+                    : depthValue
+                      ? `${depthValue} · ${depthLevelValue ?? 'level not available'}`
+                      : 'Waiting for slice'}
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </footer>

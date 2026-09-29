@@ -8,11 +8,24 @@ import {
 } from '../../lib/temperatureSlice'
 
 interface TemperatureLegendProps {
-  layer: PreparedTemperatureSlice
+  oceanLayer: {
+    type: 'scalar'
+    data: PreparedTemperatureSlice
+  } | {
+    type: 'vector'
+    uo: PreparedTemperatureSlice
+    vo: PreparedTemperatureSlice
+  } | null
   timeLevels: number | null
 }
 
-const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ layer, timeLevels }) => {
+const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ oceanLayer, timeLevels }) => {
+  // Only show legend for scalar layers (temperature/salinity)
+  if (!oceanLayer || oceanLayer.type !== 'scalar') {
+    return null
+  }
+
+  const layer = oceanLayer.data
   const { slice, colorScale } = layer
   const unit = formatDisplayUnit(slice.var_units)
   // The legend shows the color scale actually used for rasterization: the fixed
@@ -28,7 +41,7 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ layer, timeLevels
       className="pointer-events-none absolute bottom-3 right-3 z-10 w-[min(15rem,calc(100%-1.5rem))] rounded-lg border border-white/12 bg-[#07101e]/95 p-3 shadow-[0_10px_30px_rgba(2,6,13,0.5)] sm:bottom-4 sm:right-4"
     >
       <figcaption className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-300">
-        Temperature
+        {slice.var_name === 'thetao' ? 'Temperature' : slice.var_name === 'so' ? 'Salinity' : 'Variable'}
       </figcaption>
       <div
         aria-hidden="true"

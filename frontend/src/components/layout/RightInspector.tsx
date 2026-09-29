@@ -7,6 +7,8 @@ import {
   formatSelectedTime,
   type PreparedTemperatureSlice,
 } from '../../lib/temperatureSlice'
+import type { SubsurfaceSample } from '../../lib/subsurfaceFrame'
+import type { IsosurfaceSample } from '../globe/IsosurfaceLayer'
 import type { DatasetMetadata } from '../../services/api'
 
 export interface TemperatureSliceSelection {
@@ -18,7 +20,14 @@ export interface TemperatureSliceSelection {
 interface RightInspectorProps {
   dataset: string | null
   metadata: DatasetMetadata | null
-  temperatureLayer: PreparedTemperatureSlice | null
+  oceanLayer: {
+    type: 'scalar'
+    data: PreparedTemperatureSlice
+  } | {
+    type: 'vector'
+    uo: PreparedTemperatureSlice
+    vo: PreparedTemperatureSlice
+  } | null
   sliceSelection: TemperatureSliceSelection | null
   isLoading: boolean
   error: string | null
@@ -27,6 +36,8 @@ interface RightInspectorProps {
   colorScale: { min: number; max: number } | null
   scaleLoading: boolean
   previousTimeMean: number | null
+  subsurfaceSample: SubsurfaceSample | null
+  isosurfaceSample: IsosurfaceSample | null
 }
 
 const formatValue = (value: unknown): string => {
@@ -41,7 +52,7 @@ const formatCount = (value: number): string => value.toLocaleString()
 const RightInspector: React.FC<RightInspectorProps> = ({
   dataset,
   metadata,
-  temperatureLayer,
+  oceanLayer,
   sliceSelection,
   isLoading,
   error,
@@ -50,6 +61,8 @@ const RightInspector: React.FC<RightInspectorProps> = ({
   colorScale,
   scaleLoading,
   previousTimeMean,
+  subsurfaceSample,
+  isosurfaceSample,
 }) => {
   const coordinates = metadata
     ? [
@@ -59,7 +72,19 @@ const RightInspector: React.FC<RightInspectorProps> = ({
         { label: 'Longitude', value: metadata.longitude_coordinate },
       ]
     : []
-  const slice = temperatureLayer?.slice ?? null
+
+  // Get the slice data for display (scalar or vector components)
+  const getSliceData = () => {
+    if (!oceanLayer) return null
+    if (oceanLayer.type === 'scalar') {
+      return oceanLayer.data.slice
+    } else {
+      // For vector, we'll show uo component info primarily (or could show both)
+      return oceanLayer.uo.slice
+    }
+  }
+
+  const slice = getSliceData()
   const displayUnit = slice ? formatDisplayUnit(slice.var_units) : null
 
   return (
@@ -106,7 +131,7 @@ const RightInspector: React.FC<RightInspectorProps> = ({
             role="status"
             className="rounded-md border border-white/10 bg-[#0b1524] px-3 py-2 text-sm text-slate-300"
           >
-            Loading temperature layer.
+            Loading ocean layer.
           </p>
         )}
 
@@ -146,7 +171,7 @@ const RightInspector: React.FC<RightInspectorProps> = ({
                   id="selected-slice-title"
                   className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-200/80"
                 >
-                  Selected temperature slice
+                  Selected {sliceSelection.variable === 'currents' ? 'ocean current' : sliceSelection.variable === 'thetao' ? 'temperature' : 'salinity'} slice
                 </h4>
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
                   {[
@@ -203,6 +228,50 @@ const RightInspector: React.FC<RightInspectorProps> = ({
                       </dd>
                     </React.Fragment>
                   ))}
+
+                  {/* For vector data, add additional info about vo component */}
+                  {oceanLayer && oceanLayer.type === 'vector' && (
+                    <>
+                      <dt className="text-slate-400">Vector components</dt>
+                      <dd className="min-w-0 break-words font-medium text-slate-100">
+                        Showing uo (eastward) and vo (northward) components
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              </section>
+            )}
+
+            {subsurfaceSample && (
+              <section aria-labelledby="subsurface-sample-title" className="space-y-2">
+                <h4 id="subsurface-sample-title" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cyan-200/80">
+                  3D subsurface sample
+                </h4>
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+                  {[
+                    { label: 'Variable', value: subsurfaceSample.variable },
+                    { label: 'Actual time', value: formatSelectedTime(subsurfaceSample.actualTime) },
+                    { label: 'Real depth', value: `${formatNumber(subsurfaceSample.realDepth)} ${subsurfaceSample.depthUnits}` },
+                    { label: 'Latitude', value: `${formatNumber(subsurfaceSample.latitude)}°` },
+                    { label: 'Longitude', value: `${formatNumber(subsurfaceSample.longitude)}°` },
+                    { label: 'Value', value: subsurfaceSample.value === null ? 'Missing value' : `${formatNumber(subsurfaceSample.value)} ${formatDisplayUnit(subsurfaceSample.units)}` },
+                  ].map((item) => <React.Fragment key={item.label}><dt className="text-slate-400">{item.label}</dt><dd className="min-w-0 break-words font-medium text-slate-100">{item.value}</dd></React.Fragment>)}
+                </dl>
+              </section>
+            )}
+
+            {isosurfaceSample && (
+              <section aria-labelledby="isosurface-sample-title" className="space-y-2">
+                <h4 id="isosurface-sample-title" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-200">Temperature isosurface</h4>
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs">
+                  {[
+                    { label: 'Target', value: `${formatNumber(isosurfaceSample.target, 1)} ${formatDisplayUnit(isosurfaceSample.units)}` },
+                    { label: 'Actual time', value: formatSelectedTime(isosurfaceSample.actualTime) },
+                    { label: 'Latitude', value: `${formatNumber(isosurfaceSample.latitude)}°` },
+                    { label: 'Longitude', value: `${formatNumber(isosurfaceSample.longitude)}°` },
+                    { label: 'Depth', value: `${formatNumber(isosurfaceSample.realDepth)} m` },
+                    { label: 'Depth meaning', value: 'Interpolated model crossing depth' },
+                  ].map((item) => <React.Fragment key={item.label}><dt className="text-slate-400">{item.label}</dt><dd className="min-w-0 break-words font-medium text-slate-100">{item.value}</dd></React.Fragment>)}
                 </dl>
               </section>
             )}

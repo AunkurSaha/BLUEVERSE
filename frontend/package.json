@@ -7,7 +7,8 @@
     "prebuild": "node scripts/copy-cesium-assets.mjs",
     "dev": "vite",
     "build": "vite build",
-    "test:science": "node --experimental-strip-types src/lib/temperatureSlice.test.ts",
+    "test:science": "node --experimental-strip-types src/lib/temperatureSlice.test.ts && node --experimental-strip-types src/lib/argoChart.test.ts && node --experimental-strip-types src/lib/subsurfaceFrame.test.ts && node --experimental-strip-types src/lib/oceanAnalysis.test.ts && node --experimental-strip-types src/lib/isosurface.test.ts && node --experimental-strip-types src/lib/transect.test.ts",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

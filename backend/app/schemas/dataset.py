@@ -1,5 +1,13 @@
 from pydantic import BaseModel
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Literal
+
+
+class DatasetCatalogEntry(BaseModel):
+    """A registry entry suitable for choosing a data source in the UI."""
+
+    id: str
+    dataset_kind: Literal["model_grid", "observation_trajectory"]
+    description: Optional[str] = None
 
 class DatasetProvenance(BaseModel):
     provider: Optional[str]
@@ -23,6 +31,7 @@ class DatasetMetadata(BaseModel):
     depth_coordinate_name: Optional[str] = None
     depth_units: Optional[str] = None
     depth_values: Optional[List[float]] = None
+    selectable_depth_indices: Optional[List[int]] = None
     # Additional fields for time exploration
     time_coordinate_name: Optional[str] = None
     time_units: Optional[str] = None

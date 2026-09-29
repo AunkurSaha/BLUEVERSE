@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 from typing import List, Optional, Dict, Any
 from ..services.netcdf_service import NetCDFService
 from ..services.dataset_registry import dataset_registry
-from ..schemas.dataset import DatasetMetadata, SliceResponse
+from ..schemas.dataset import DatasetCatalogEntry, DatasetMetadata, SliceResponse
 
 router = APIRouter()
 service = NetCDFService()
@@ -15,6 +15,12 @@ async def health():
 async def list_datasets():
     """Return a list of registered dataset IDs."""
     return dataset_registry.list_ids()
+
+
+@router.get("/datasets/catalog", response_model=List[DatasetCatalogEntry])
+async def list_dataset_catalog():
+    """Return registered datasets with generic source classification."""
+    return dataset_registry.list_catalog_entries()
 
 @router.get("/datasets/{dataset_id}/metadata", response_model=DatasetMetadata)
 async def get_dataset_metadata(dataset_id: str = Path(..., description="The dataset ID")):

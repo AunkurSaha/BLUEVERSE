@@ -4,6 +4,14 @@ const API_BASE = '/api'
 
 export type Dataset = string
 
+export type DatasetKind = 'model_grid' | 'observation_trajectory'
+
+export interface DatasetCatalogEntry {
+  id: string
+  dataset_kind: DatasetKind
+  description: string | null
+}
+
 export type BackendStatus = 'checking' | 'online' | 'offline'
 
 export interface DatasetMetadata {
@@ -25,6 +33,7 @@ export interface DatasetMetadata {
   depth_coordinate_name: string | null
   depth_units: string | null
   depth_values: number[] | null
+  selectable_depth_indices: number[] | null
   // Additional fields for time exploration
   time_coordinate_name: string | null
   time_units: string | null
@@ -53,6 +62,9 @@ export const fetchHealth = async (signal?: AbortSignal): Promise<{ status: strin
 
 export const fetchDatasets = async (signal?: AbortSignal): Promise<Dataset[]> =>
   requestJson(`${API_BASE}/datasets`, 'Failed to fetch datasets', { signal })
+
+export const fetchDatasetCatalog = async (signal?: AbortSignal): Promise<DatasetCatalogEntry[]> =>
+  requestJson(`${API_BASE}/datasets/catalog`, 'Failed to fetch dataset catalog', { signal })
 
 export const fetchDatasetMetadata = async (
   datasetId: string,

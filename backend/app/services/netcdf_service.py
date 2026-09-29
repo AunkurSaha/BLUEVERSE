@@ -208,10 +208,22 @@ class NetCDFService:
         # Prepare depth values and units if depth coordinate is found
         depth_values = None
         depth_units = None
+        selectable_depth_indices = None
         if depth_coord_name is not None and depth_coord_name in ds.coords:
             depth_coord = ds[depth_coord_name]
             depth_values = depth_coord.values.tolist()  # Convert to list of Python floats
             depth_units = depth_coord.attrs.get('units', '')
+            # A selectable level must contain at least one finite source value
+            # across the dataset's first gridded scientific variable. This keeps
+            # all-null coordinate levels out of the slice UI without changing
+            # source coordinates or pretending they are observations.
+            data_name = next((name for name, value in ds.data_vars.items() if depth_coord_name in value.dims), None)
+            if data_name is not None:
+                data_var = ds[data_name]
+                selectable_depth_indices = [
+                    index for index in range(depth_coord.sizes[depth_coord_name])
+                    if np.isfinite(data_var.isel({depth_coord_name: index}).values).any()
+                ]
 
         # Prepare time values and units if time coordinate is found
         time_values = None
@@ -245,6 +257,7 @@ class NetCDFService:
             'depth_coordinate_name': depth_coord_name,
             'depth_units': depth_units,
             'depth_values': depth_values,
+            'selectable_depth_indices': selectable_depth_indices,
             # Additional fields for time exploration
             'time_coordinate_name': time_coord_name,
             'time_units': time_units,
@@ -286,3 +299,15 @@ class NetCDFService:
             ds.close()
 
         return result
+
+
+
+    def open_dataset(self, file_path: str):
+        """Open a NetCDF dataset and return the xarray Dataset object.
+        
+        Note: The caller is responsible for closing the dataset when done.
+        """
+        try:
+            return xr.open_dataset(file_path)
+        except Exception as e:
+            raise ValueError(f"Error opening dataset: {e}")
