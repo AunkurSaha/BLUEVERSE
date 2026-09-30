@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react'
-import { formatHistoricalUtc, selectedTrackPoint } from '../../lib/historicalEvents'
+import { formatHistoricalDateRange, formatHistoricalUtc, historicalAnalysisDescription, selectedTrackPoint } from '../../lib/historicalEvents'
 import { historicalOceanAvailabilityState } from '../../lib/historicalEventPanelState'
 import { matchHistoricalOceanTime, type AnalysisContext, type HistoricalAnalysisMode } from '../../lib/historicalOcean'
 import type { HistoricalEventDetail, HistoricalEventSummary, HistoricalEventTrack } from '../../services/eventApi'
@@ -54,11 +54,6 @@ interface Props {
 const valueOrUnavailable = (value: number | string | null, unit = ''): string =>
   value === null || value === '' ? 'Unavailable' : `${value}${unit ? ` ${unit}` : ''}`
 
-const shortDate = (value: string): string => {
-  const date = new Date(`${value}T00:00:00Z`)
-  return `${date.getUTCDate()} May`
-}
-
 export default function HistoricalEventPanel(props: Props) {
   const {
     events, selectedEventId, detail, track, visible, selectedPointIndex,
@@ -72,25 +67,36 @@ export default function HistoricalEventPanel(props: Props) {
     onHistoricalComparisonChange, onHistoricalTimeChange, onInspectTrackPoint,
   } = props
   const availableEvents = events ?? []
-  const historicalAvailability = historicalOceanAvailabilityState(detail, configurationError)
+  const availabilityError = error ?? configurationError
+  const historicalAvailability = historicalOceanAvailabilityState(
+    selectedEventId,
+    detail,
+    loading,
+    availabilityError,
+  )
   const historicalAvailabilityLabel = historicalAvailability === 'LOADING'
-    ? 'Resolving availability'
+    ? 'Checking historical ocean availability...'
     : historicalAvailability === 'ERROR'
-      ? 'Availability error'
+      ? 'Historical ocean availability could not be checked.'
       : historicalAvailability === 'AVAILABLE'
         ? 'Available'
-        : 'Unavailable'
+        : historicalAvailability === 'UNAVAILABLE'
+          ? 'Historical ocean data is not available for this event.'
+          : 'Select a historical event.'
   const exploreLabel = historicalAvailability === 'LOADING'
-    ? 'Resolving Availability...'
+    ? 'Checking Availability...'
     : historicalAvailability === 'ERROR'
-      ? 'Historical Ocean Error'
+      ? 'Retry Availability Check'
       : historicalAvailability === 'UNAVAILABLE'
         ? 'Historical Ocean Unavailable'
+        : historicalAvailability === 'IDLE'
+          ? 'Select Historical Event'
         : configurationLoading || !configuration
           ? 'Loading Ocean Metadata...'
           : 'Explore Historical Ocean'
   const point = selectedTrackPoint(track ?? null, selectedPointIndex)
   const historicalActive = analysisContext === 'historical-event'
+  const analysisDescription = historicalAnalysisDescription(analysisMode, historicalPhase, historicalComparison, configuration?.analysis_windows ?? [], historicalOceanTime)
   const timeMatch = point && historicalTimeValues.length
     ? matchHistoricalOceanTime(point.time, historicalTimeValues)
     : null
@@ -105,7 +111,7 @@ export default function HistoricalEventPanel(props: Props) {
       </select>
 
       {loading && <p role="status" className="mt-3 text-xs text-amber-100">Loading historical event...</p>}
-      {error && <div className="mt-3 space-y-2"><p role="alert" className="text-xs text-red-200">{error}</p><button type="button" onClick={onRetry} className="min-h-11 border border-red-300/40 px-3 text-xs font-medium text-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300">Retry Event Load</button></div>}
+      {!loading && error && <div className="mt-3 space-y-2"><p role="alert" className="text-xs text-red-200">Historical ocean availability could not be checked.</p><button type="button" onClick={onRetry} className="min-h-11 border border-red-300/40 px-3 text-xs font-medium text-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300">Retry</button><details className="text-xs text-slate-400"><summary className="min-h-11 cursor-pointer py-3">Technical details</summary><p className="break-words pb-2">{error}</p></details></div>}
 
       {!loading && !error && detail && track && <div className="mt-3 space-y-3">
         <div className="flex items-start justify-between gap-3">
@@ -116,9 +122,9 @@ export default function HistoricalEventPanel(props: Props) {
         <section aria-labelledby="historical-ocean-title" className="border-t border-white/10 pt-3">
           <div className="flex items-start justify-between gap-3">
             <div><h4 id="historical-ocean-title" className="text-sm font-semibold text-white">Historical Ocean</h4><p role={historicalAvailability === 'ERROR' ? 'alert' : 'status'} className={`mt-0.5 text-xs ${historicalAvailability === 'ERROR' ? 'text-red-200' : 'text-slate-400'}`}>{historicalAvailabilityLabel}</p></div>
-            {!historicalActive ? <button type="button" disabled={historicalAvailability !== 'AVAILABLE' || configurationLoading || !configuration} onClick={onEnterHistoricalOcean} className="min-h-11 border border-cyan-300/50 bg-cyan-950/30 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-900/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">{exploreLabel}</button> : <button type="button" onClick={onReturnToCurrentOcean} className="min-h-11 border border-white/20 px-3 text-xs font-semibold text-slate-100 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">Return to Current Ocean</button>}
+            {!historicalActive ? <button type="button" disabled={(historicalAvailability !== 'AVAILABLE' && historicalAvailability !== 'ERROR') || configurationLoading || (historicalAvailability === 'AVAILABLE' && !configuration)} onClick={historicalAvailability === 'ERROR' ? onRetry : onEnterHistoricalOcean} className="min-h-11 border border-cyan-300/50 bg-cyan-950/30 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-900/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50">{exploreLabel}</button> : <button type="button" onClick={onReturnToCurrentOcean} className="min-h-11 border border-white/20 px-3 text-xs font-semibold text-slate-100 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300">Return to Current Ocean</button>}
           </div>
-          {configurationError && <p role="alert" className="mt-2 text-xs text-red-200">{configurationError}</p>}
+          {historicalAvailability === 'ERROR' && <details className="mt-2 text-xs text-red-200"><summary className="min-h-11 cursor-pointer py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300">Technical details</summary><p className="break-words pb-2">{availabilityError}</p></details>}
 
           {historicalActive && <div className="mt-3 space-y-3">
             <div className="border border-cyan-300/25 bg-[#071421] p-3"><p className="text-sm font-semibold text-cyan-100">Amphan Historical Ocean</p><p className="text-xs text-slate-300">GLORYS12V1 Reanalysis · May 2020</p><p className="mt-1 text-[11px] leading-4 text-slate-400">Model reanalysis values, not observations or a forecast.</p></div>
@@ -133,7 +139,7 @@ export default function HistoricalEventPanel(props: Props) {
 
             {analysisMode === 'daily' && <label className="block text-xs text-slate-300">Historical ocean date<select value={historicalTimeIndex} onChange={(event) => onHistoricalTimeChange(Number(event.target.value))} className="mt-1 min-h-11 w-full border border-white/15 bg-[#08111f] px-2 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">{historicalTimeValues.map((value, index) => <option key={value} value={index}>{formatHistoricalUtc(value)}</option>)}</select></label>}
 
-            {analysisMode === 'phase_mean' && <fieldset><legend className="text-xs font-medium text-slate-300">Analysis window</legend><div className="mt-1 grid grid-cols-3 gap-1">{configuration?.analysis_windows.map((window) => <button key={window.id} type="button" aria-pressed={historicalPhase === window.id} onClick={() => onHistoricalPhaseChange(window.id)} className={`min-h-14 border px-1 py-1 text-[10px] leading-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 ${historicalPhase === window.id ? 'border-amber-300/60 bg-amber-950/30 text-amber-100' : 'border-white/10 text-slate-300'}`}><span className="block font-semibold">{window.id === 'during' ? 'During' : window.id[0].toUpperCase() + window.id.slice(1)}</span><span className="block">{shortDate(window.dates[0])}–{shortDate(window.dates[window.dates.length - 1])}</span><span className="block">n = {window.sample_count}</span></button>)}</div><p className="mt-1 text-[11px] text-slate-400">Analysis windows, not storm classification boundaries.</p></fieldset>}
+            {analysisMode === 'phase_mean' && <fieldset><legend className="text-xs font-medium text-slate-300">Analysis window</legend><div className="historical-phase-options">{configuration?.analysis_windows.map((window) => <button key={window.id} type="button" aria-pressed={historicalPhase === window.id} onClick={() => onHistoricalPhaseChange(window.id)} className={`border focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 ${historicalPhase === window.id ? 'border-amber-300/60 bg-amber-950/30 text-amber-100' : 'border-white/10 text-slate-300'}`}><span className="font-semibold">{window.id[0].toUpperCase() + window.id.slice(1)}</span><span>{formatHistoricalDateRange(window.dates, false)}</span><span title={`${window.sample_count} daily samples`}>n={window.sample_count}</span></button>)}</div><p className="mt-1 text-[11px] text-slate-400">Analysis windows, not storm classification boundaries.</p></fieldset>}
 
             {analysisMode === 'difference' && <fieldset><legend className="text-xs font-medium text-slate-300">Phase difference</legend><div className="mt-1 grid grid-cols-2 gap-1">{([['during-before', 'During − Before'], ['after-before', 'After − Before']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={historicalComparison === value} onClick={() => onHistoricalComparisonChange(value)} className={`min-h-11 border px-2 text-[11px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300 ${historicalComparison === value ? 'border-amber-300/60 bg-amber-950/30 text-amber-100' : 'border-white/10 text-slate-300'}`}>{label}</button>)}</div><p className="mt-1 text-[11px] text-slate-400">Temporal comparison around the event; no causal attribution.</p></fieldset>}
 
@@ -144,15 +150,18 @@ export default function HistoricalEventPanel(props: Props) {
         </section>
 
         <div className="space-y-1.5 border-t border-white/10 pt-3">
-          <div className="flex items-center justify-between gap-2 text-xs"><span className="text-slate-400">Cyclone track time</span><span className="text-right font-medium tabular-nums text-amber-100">{formatHistoricalUtc(point?.time ?? null)}</span></div>
+          <dl className="historical-time-selection">
+            {historicalActive && <><dt>Ocean Analysis</dt><dd>{analysisDescription}</dd></>}
+            <dt>Selected Cyclone Track Point</dt><dd>{formatHistoricalUtc(point?.time ?? null)}</dd>
+          </dl>
+          {historicalActive && <p className="text-[11px] leading-4 text-slate-400">Ocean analysis and track time are separate selections, not an exact temporal match.</p>}
           <input type="range" min={0} max={Math.max(0, track.points.length - 1)} step={1} value={Math.min(selectedPointIndex, Math.max(0, track.points.length - 1))} onChange={handleTimeline} className="h-11 w-full accent-amber-400" aria-label="Historical event timeline" aria-valuetext={formatHistoricalUtc(point?.time ?? null)} />
           <p className="text-xs tabular-nums text-slate-400">Track point {selectedPointIndex + 1} of {track.point_count}</p>
         </div>
 
         <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-x-3 gap-y-1.5 text-xs">
-          <dt className="text-slate-400">Historical ocean field</dt><dd className="break-words text-right font-medium tabular-nums text-cyan-100">{analysisMode === 'daily' ? formatHistoricalUtc(historicalOceanTime) : analysisMode === 'phase_mean' ? `${historicalPhase} phase mean` : historicalComparison.replace('-', ' − ')}</dd>
           <dt className="text-slate-400">Current operational time</dt><dd className="break-words text-right tabular-nums text-slate-300">{formatHistoricalUtc(currentOperationalModelTime)}</dd>
-          {timeMatch && <><dt className="text-slate-400">Nearest ocean field</dt><dd className="text-right tabular-nums text-cyan-100">{formatHistoricalUtc(timeMatch.matchedModelTime)}</dd><dt className="text-slate-400">Time offset</dt><dd className="text-right tabular-nums text-slate-100">{timeMatch.absoluteOffsetHours.toFixed(0)} h</dd><dt className="text-slate-400">Match method</dt><dd className="break-words text-right text-slate-300">Nearest available source time</dd></>}
+          {timeMatch && <><dt className="text-slate-400">Track sampling preview</dt><dd className="text-right tabular-nums text-cyan-100">{formatHistoricalUtc(timeMatch.matchedModelTime)}</dd><dt className="text-slate-400">Track-to-source offset</dt><dd className="text-right tabular-nums text-slate-100">{timeMatch.absoluteOffsetHours.toFixed(0)} h</dd><dt className="text-slate-400">Sampling method</dt><dd className="break-words text-right text-slate-300">Nearest daily source for Inspect Ocean Here; separate from the displayed analysis.</dd></>}
           <dt className="text-slate-400">Latitude</dt><dd className="text-right tabular-nums text-slate-100">{point ? `${point.latitude.toFixed(2)} ${track.units.latitude}` : 'Unavailable'}</dd>
           <dt className="text-slate-400">Longitude</dt><dd className="text-right tabular-nums text-slate-100">{point ? `${point.longitude.toFixed(2)} ${track.units.longitude}` : 'Unavailable'}</dd>
           <dt className="text-slate-400">Wind</dt><dd className="text-right tabular-nums text-slate-100">{valueOrUnavailable(point?.wind ?? null, track.units.wind)}</dd>

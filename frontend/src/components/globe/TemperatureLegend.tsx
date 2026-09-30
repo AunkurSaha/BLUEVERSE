@@ -40,7 +40,7 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ oceanLayer, timeL
   return (
     <figure
       aria-label={`${variableLabel} color scale from ${minimum} to ${maximum} ${unit}`}
-      className="pointer-events-none absolute bottom-3 right-3 z-10 w-[min(15rem,calc(100%-1.5rem))] rounded-lg border border-white/12 bg-[#07101e]/95 p-3 shadow-[0_10px_30px_rgba(2,6,13,0.5)] sm:bottom-4 sm:right-4"
+      className="pointer-events-auto absolute bottom-3 right-3 z-10 w-[min(15rem,calc(100%-1.5rem))] rounded-lg border border-white/12 bg-[#07101e]/95 p-3 shadow-[0_10px_30px_rgba(2,6,13,0.5)] sm:bottom-4 sm:right-4"
     >
       <figcaption className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-300">
         {variableLabel}
@@ -55,20 +55,19 @@ const TemperatureLegend: React.FC<TemperatureLegendProps> = ({ oceanLayer, timeL
         <span className="min-w-0 truncate">{unit}</span>
         <span className="font-mono">{maximum}</span>
       </div>
-      {colorScale && colorMap === 'sequential' && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-cyan-200/70">
-          Temporal comparison scale, fixed across{' '}
-          {timeLevels !== null ? `${timeLevels} timestamps` : 'all timestamps'} at this depth.
-        </p>
-      )}
-      {colorMap === 'diverging' && (
-        <p className="mt-1.5 text-[10px] leading-relaxed text-cyan-200/70">
-          Symmetric phase-difference scale centered at zero.
-        </p>
-      )}
-      <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-        Source grid cells; no interpolation. No data is transparent.
-      </p>
+      <details className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+        <summary className="cursor-pointer select-none text-cyan-200/80">Details</summary>
+        {colorScale && colorMap === 'sequential' && (
+          <p className="mt-1.5">
+            Temporal comparison scale, fixed across{' '}
+            {timeLevels !== null ? `${timeLevels} timestamps` : 'all timestamps'} at this depth.
+          </p>
+        )}
+        {colorMap === 'diverging' && (
+          <p className="mt-1.5">Symmetric phase-difference scale centered at zero.</p>
+        )}
+        <p className="mt-1.5 text-slate-500">Source grid cells; no interpolation. No data is transparent.</p>
+      </details>
     </figure>
   )
 }

@@ -68,3 +68,43 @@ class SliceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProfileGridMatch(BaseModel):
+    latitude: float
+    longitude: float
+    latitude_index: int
+    longitude_index: int
+
+
+class ScalarProfileLevel(BaseModel):
+    depth: float
+    value: Optional[float]
+
+
+class ScalarProfileResponse(BaseModel):
+    dataset_id: str
+    variable: str
+    actual_time: str
+    matched: ProfileGridMatch
+    depth_units: str
+    units: str
+    levels: List[ScalarProfileLevel]
+
+
+class CurrentProfileLevel(BaseModel):
+    depth: float
+    u: Optional[float]
+    v: Optional[float]
+    speed: Optional[float]
+    direction_toward_degrees: Optional[float]
+
+
+class CurrentProfileResponse(BaseModel):
+    u_dataset_id: str
+    v_dataset_id: str
+    actual_time: str
+    matched: ProfileGridMatch
+    depth_units: str
+    units: str
+    levels: List[CurrentProfileLevel]

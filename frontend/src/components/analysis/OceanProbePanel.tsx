@@ -1,7 +1,18 @@
 import { formatDisplayUnit, formatSelectedTime } from '../../lib/temperatureSlice'
 import type { OceanProbeFrame, ProbeCurrentLevel, ProbeLevel, ProbeLocation, ProbeScalarProfile } from '../../lib/oceanProbe'
 
-interface Props { frame: OceanProbeFrame | null; location: ProbeLocation | null; loading: boolean; status: string | null; historical?: boolean }
+interface Props {
+  frame: OceanProbeFrame | null
+  location: ProbeLocation | null
+  loading: boolean
+  status: string | null
+  error: string | null
+  historical?: boolean
+  modelSource: string
+  onCancel: () => void
+  onRetry: () => void
+  onChooseAnother: () => void
+}
 
 const formatOffset = (milliseconds: number): string => {
   if (milliseconds === 0) return 'Matches global time'
@@ -53,7 +64,10 @@ function ScalarSummary({ label, profile }: { label: string; profile: ProbeScalar
   </div>
 }
 
-export default function OceanProbePanel({ frame, location, loading, status, historical = false }: Props) {
+export default function OceanProbePanel({
+  frame, location, loading, status, error, historical = false, modelSource,
+  onCancel, onRetry, onChooseAnother,
+}: Props) {
   const currentSurface = frame?.currents ? surfaceLevel(frame.currents.levels, (level) => level.speed) : null
   const deepest = frame ? [
     ...(frame.temperature?.levels.filter((level) => level.value !== null).map((level) => level.depth) ?? []),
@@ -66,8 +80,10 @@ export default function OceanProbePanel({ frame, location, loading, status, hist
     <p className="mt-1 text-xs text-slate-400">{historical ? 'GLORYS12V1 reanalysis water column at the nearest model-grid point.' : 'Model water column sampled at one nearest valid grid point.'}</p>
     {!location && <p role="status" className="mt-4 border border-white/10 bg-[#0b1524] p-3 text-sm text-slate-300">Click inside the Temperature model domain to select a probe.</p>}
     {location && <div className="mt-4 text-xs text-slate-300"><p>Requested: {location.latitude.toFixed(4)}°, {location.longitude.toFixed(4)}°</p>{frame && <p>{historical ? 'Requested event/source time' : 'Global selected time'}: {formatSelectedTime(frame.globalTime)}</p>}</div>}
-    {loading && <p role="status" className="mt-4 text-sm text-cyan-100">Loading real model water columns...</p>}
-    {!loading && status && <p role="alert" className="mt-4 text-sm text-amber-200">{status}</p>}
+    {location && <p className="mt-1 text-xs text-slate-400">Model source: {modelSource}</p>}
+    {loading && <div className="loading-state" role="status"><div className="flex items-center gap-2"><span className="request-spinner" aria-hidden="true" /><p className="text-sm font-medium text-cyan-100">Loading water-column profiles...</p></div><button type="button" onClick={onCancel} className="mt-3 min-h-11 border border-white/20 px-3 text-xs font-semibold text-slate-100">Cancel</button></div>}
+    {!loading && error && <div className="error-state" role="alert"><p className="text-sm font-semibold text-red-100">Profile unavailable</p><p className="mt-1">We couldn't load the model water column for this location.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={onRetry} className="min-h-11 border border-red-300/40 px-3 font-semibold text-red-100">Retry</button><button type="button" onClick={onChooseAnother} className="min-h-11 border border-white/20 px-3 font-semibold text-slate-100">Choose another point</button></div><details className="mt-2"><summary className="min-h-11 cursor-pointer py-3 text-slate-300">Technical details</summary><p className="break-words pb-2 text-slate-400">{error}</p></details></div>}
+    {!loading && !error && status && <p role="status" className="mt-4 text-sm text-amber-200">{status}</p>}
     {frame && <div className="mt-4 space-y-4">
       <section aria-labelledby="probe-surface-title"><h3 id="probe-surface-title" className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Surface summary</h3>
         {frame.temperature ? <ScalarSummary label="Temperature model value" profile={frame.temperature} /> : <p className="border-t border-white/10 pt-2 text-xs text-amber-200">Temperature unavailable: {frame.errors.temperature}</p>}

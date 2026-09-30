@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Path, Query
 from typing import List, Optional, Dict, Any
 from ..services.netcdf_service import NetCDFService
 from ..services.dataset_registry import dataset_registry
-from ..schemas.dataset import DatasetCatalogEntry, DatasetMetadata, SliceResponse
+from ..schemas.dataset import CurrentProfileResponse, DatasetCatalogEntry, DatasetMetadata, ScalarProfileResponse, SliceResponse
 
 router = APIRouter()
 service = NetCDFService()
@@ -48,3 +48,39 @@ async def get_slice(
         raise HTTPException(status_code=400, detail="Unable to read the requested slice.")
     except Exception as e:
         raise HTTPException(status_code=500, detail="Unable to read the requested slice.")
+
+
+@router.get("/datasets/{dataset_id}/profile", response_model=ScalarProfileResponse)
+async def get_profile(
+    dataset_id: str = Path(..., description="The dataset ID"),
+    variable: str = Query(..., description="Variable name"),
+    time_index: int = Query(0, ge=0, description="Time index"),
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=360),
+):
+    try:
+        return service.get_profile(dataset_id, variable, time_index, latitude, longitude)
+    except ValueError as error:
+        if "not registered" in str(error):
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+        raise HTTPException(status_code=400, detail="Unable to read the requested profile.")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unable to read the requested profile.")
+
+
+@router.get("/datasets/{u_dataset_id}/current-profile", response_model=CurrentProfileResponse)
+async def get_current_profile(
+    u_dataset_id: str = Path(..., description="Eastward current dataset ID"),
+    v_dataset_id: str = Query(..., description="Northward current dataset ID"),
+    time_index: int = Query(0, ge=0, description="Time index"),
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=360),
+):
+    try:
+        return service.get_current_profile(u_dataset_id, v_dataset_id, time_index, latitude, longitude)
+    except ValueError as error:
+        if "not registered" in str(error):
+            raise HTTPException(status_code=404, detail="Dataset not found.")
+        raise HTTPException(status_code=400, detail="Unable to read the requested current profile.")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unable to read the requested current profile.")

@@ -7,7 +7,7 @@
     "prebuild": "node scripts/copy-cesium-assets.mjs",
     "dev": "vite",
     "build": "vite build",
-    "test:science": "node --experimental-strip-types src/lib/temperatureSlice.test.ts && node --experimental-strip-types src/lib/argoChart.test.ts && node --experimental-strip-types src/lib/subsurfaceFrame.test.ts && node --experimental-strip-types src/lib/oceanAnalysis.test.ts && node --experimental-strip-types src/lib/isosurface.test.ts && node --experimental-strip-types src/lib/transect.test.ts && node --experimental-strip-types src/lib/oceanProbe.test.ts && node --experimental-strip-types src/lib/alerts.test.ts && node --experimental-strip-types src/lib/regions.test.ts && node --experimental-strip-types src/lib/historicalEvents.test.ts && node scripts/run-historical-panel-test.mjs",
+    "test:science": "node --experimental-strip-types src/lib/temperatureSlice.test.ts && node --experimental-strip-types src/lib/argoChart.test.ts && node --experimental-strip-types src/lib/subsurfaceFrame.test.ts && node --experimental-strip-types src/lib/oceanAnalysis.test.ts && node --experimental-strip-types src/lib/isosurface.test.ts && node --experimental-strip-types src/lib/transect.test.ts && node --experimental-strip-types src/lib/oceanProbe.test.ts && node --experimental-strip-types src/lib/requestLifecycle.test.ts && node --experimental-strip-types src/lib/alerts.test.ts && node --experimental-strip-types src/lib/regions.test.ts && node --experimental-strip-types src/lib/historicalEvents.test.ts && node scripts/run-historical-panel-test.mjs && node scripts/run-workspace-shell-test.mjs",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },

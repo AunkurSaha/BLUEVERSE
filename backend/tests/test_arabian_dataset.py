@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 import xarray as xr
 
 from backend.app.services.dataset_registry import dataset_registry
@@ -156,6 +157,31 @@ def test_real_arabian_current_components_are_coordinate_and_unit_compatible():
                 v_dataset[coordinate].values,
             )
         assert u_dataset["uo"].attrs["units"] == v_dataset["vo"].attrs["units"]
+
+
+def test_operational_scalar_profile_is_bounded_and_preserves_source_levels():
+    profile = NetCDFService().get_profile(DATASET_ID, "thetao", time_index=0, latitude=18.42, longitude=72.25)
+
+    assert profile["dataset_id"] == DATASET_ID
+    assert profile["variable"] == "thetao"
+    assert profile["actual_time"].startswith("2026-09-21T00:00:00")
+    assert profile["depth_units"] == "m"
+    assert profile["units"] == "degrees_C"
+    assert len(profile["levels"]) == 31
+    assert [level["depth"] for level in profile["levels"]] == sorted(level["depth"] for level in profile["levels"])
+    assert any(level["value"] is not None for level in profile["levels"])
+
+
+def test_operational_current_profile_uses_one_joint_finite_grid_column():
+    profile = NetCDFService().get_current_profile(
+        "arabian-sea-uo", "arabian-sea-vo", time_index=0, latitude=18.42, longitude=72.25,
+    )
+
+    assert profile["units"] == "m s-1"
+    assert len(profile["levels"]) == 31
+    finite = [level for level in profile["levels"] if level["speed"] is not None]
+    assert finite
+    assert all(level["speed"] == pytest.approx(np.hypot(level["u"], level["v"])) for level in finite)
 
 
 def test_real_phase_13e_surface_middle_and_deep_slices_are_finite():

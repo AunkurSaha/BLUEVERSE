@@ -27,7 +27,7 @@ export default function StudyRegionLayer({ viewer, region, modelBounds }: Props)
 
     const boundaryId = 'study-region-boundary'
     const labelId = 'study-region-label'
-    const outlineColor = region.data_status === 'DATA_BACKED' ? Color.CYAN.withAlpha(0.85) : Color.LIGHTSLATEGRAY.withAlpha(0.9)
+    const outlineColor = region.data_status === 'DATA_BACKED' ? Color.LIGHTSKYBLUE.withAlpha(0.42) : Color.LIGHTSLATEGRAY.withAlpha(0.5)
 
     viewer.entities.removeById(boundaryId)
     viewer.entities.removeById(labelId)
@@ -36,7 +36,7 @@ export default function StudyRegionLayer({ viewer, region, modelBounds }: Props)
       name: 'Study region extent',
       polyline: {
         positions: boundaryPositions(region.bounds),
-        width: 2,
+        width: 1,
         material: outlineColor,
         clampToGround: true,
       },
@@ -48,7 +48,7 @@ export default function StudyRegionLayer({ viewer, region, modelBounds }: Props)
       label: {
         text: 'Study region extent',
         font: '12px sans-serif',
-        fillColor: Color.WHITE,
+        fillColor: Color.LIGHTGRAY.withAlpha(0.75),
         outlineColor: Color.BLACK.withAlpha(0.9),
         outlineWidth: 3,
         style: LabelStyle.FILL_AND_OUTLINE,

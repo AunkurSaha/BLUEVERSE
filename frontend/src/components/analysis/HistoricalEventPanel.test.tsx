@@ -71,7 +71,11 @@ const configuration: HistoricalOceanConfiguration = {
     uo: 'amphan-2020-uo',
     vo: 'amphan-2020-vo',
   },
-  analysis_windows: [],
+  analysis_windows: [
+    { id: 'before', label: 'Before', dates: ['2020-05-13', '2020-05-14', '2020-05-15'], sample_count: 3 },
+    { id: 'during', label: 'During', dates: ['2020-05-16', '2020-05-17', '2020-05-18', '2020-05-19', '2020-05-20', '2020-05-21'], sample_count: 6 },
+    { id: 'after', label: 'After', dates: ['2020-05-22', '2020-05-23', '2020-05-24'], sample_count: 3 },
+  ],
 }
 
 const noop = () => undefined
@@ -117,8 +121,8 @@ const render = (overrides: Partial<ComponentProps<typeof HistoricalEventPanel>> 
   renderToStaticMarkup(<HistoricalEventPanel {...baseProps} {...overrides} />)
 
 const missingMetadata = render()
-assertIncludes(missingMetadata, 'Resolving availability')
-assertIncludes(missingMetadata, 'Resolving Availability...')
+assertIncludes(missingMetadata, 'Historical ocean data is not available for this event.')
+assertIncludes(missingMetadata, 'Historical Ocean Unavailable')
 assertIncludes(missingMetadata, 'disabled=""')
 
 const loading = render({ detail: undefined, track: undefined, loading: true })
@@ -142,15 +146,32 @@ if (availableButtonStart < 0 || /\sdisabled=/.test(availableButtonOpeningTag)) t
 const unavailable = render({
   detail: { ...detailWithoutCapability, historical_ocean_data: { status: 'UNAVAILABLE', variables: [], dataset_ids: [] } },
 })
-assertIncludes(unavailable, '>Unavailable</p>')
+assertIncludes(unavailable, 'Historical ocean data is not available for this event.')
 assertIncludes(unavailable, 'Historical Ocean Unavailable')
 assertIncludes(unavailable, 'disabled=""')
 
 const capabilityError = render({ configurationError: 'Unable to load historical ocean configuration' })
-assertIncludes(capabilityError, 'Availability error')
+assertIncludes(capabilityError, 'Historical ocean availability could not be checked.')
+assertIncludes(capabilityError, 'Retry Availability Check')
 assertIncludes(capabilityError, 'Unable to load historical ocean configuration')
+
+const requestError = render({ detail: undefined, track: undefined, error: 'Historical availability request timed out.' })
+assertIncludes(requestError, 'Historical ocean availability could not be checked.')
+assertIncludes(requestError, '>Retry</button>')
 
 const empty = render({ events: undefined, selectedEventId: '', detail: undefined, track: undefined })
 assertIncludes(empty, 'No events loaded')
+
+const phaseMean = render({ analysisContext: 'historical-event', analysisMode: 'phase_mean', historicalPhase: 'after', configuration })
+assertIncludes(phaseMean, 'After Phase Mean')
+assertIncludes(phaseMean, '22–24 May 2020')
+assertIncludes(phaseMean, '13–15 May')
+assertIncludes(phaseMean, '16–21 May')
+assertIncludes(phaseMean, 'n=6')
+assertIncludes(phaseMean, 'Selected Cyclone Track Point')
+assertIncludes(phaseMean, '2020-05-16 00:00 UTC')
+assertIncludes(phaseMean, 'not an exact temporal match')
+const difference = render({ analysisContext: 'historical-event', analysisMode: 'difference', historicalComparison: 'after-before', configuration })
+assertIncludes(difference, 'After · 22–24 May 2020 − Before · 13–15 May 2020 (phase means)')
 
 console.log('historical event panel runtime-state tests passed')

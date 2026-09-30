@@ -1,4 +1,32 @@
 import type { HistoricalEventTrack, HistoricalTrackPoint } from '../services/eventApi.ts'
+import type { HistoricalAnalysisWindow, HistoricalComparison, HistoricalPhase } from '../services/historicalOceanApi.ts'
+import type { HistoricalAnalysisMode } from './historicalOcean.ts'
+
+export const formatHistoricalDateRange = (dates: string[], includeYear = true): string => {
+  if (!dates.length) return 'Dates unavailable'
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', ...(includeYear ? { year: 'numeric' } : {}), timeZone: 'UTC' }
+  const formatter = new Intl.DateTimeFormat('en-GB', options)
+  const first = new Date(`${dates[0]}T00:00:00Z`)
+  const last = new Date(`${dates[dates.length - 1]}T00:00:00Z`)
+  if (first.getTime() === last.getTime()) return formatter.format(first)
+  return first.getUTCMonth() === last.getUTCMonth() && first.getUTCFullYear() === last.getUTCFullYear()
+    ? `${first.getUTCDate()}–${formatter.format(last)}`
+    : `${formatter.format(first)} – ${formatter.format(last)}`
+}
+
+export const historicalAnalysisDescription = (
+  mode: HistoricalAnalysisMode, phase: HistoricalPhase, comparison: HistoricalComparison,
+  windows: HistoricalAnalysisWindow[], dailyTime: string | null,
+): string => {
+  if (mode === 'daily') return `Daily · ${formatHistoricalUtc(dailyTime)}`
+  const describe = (id: string) => {
+    const window = windows.find((item) => item.id === id)
+    return `${id[0].toUpperCase()}${id.slice(1)} · ${formatHistoricalDateRange(window?.dates ?? [])}`
+  }
+  return mode === 'phase_mean'
+    ? `${phase[0].toUpperCase()}${phase.slice(1)} Phase Mean · ${formatHistoricalDateRange(windows.find((item) => item.id === phase)?.dates ?? [])}`
+    : `${comparison.split('-').map(describe).join(' − ')} (phase means)`
+}
 
 export const formatHistoricalUtc = (value: string | null): string => {
   if (!value) return 'Unavailable'

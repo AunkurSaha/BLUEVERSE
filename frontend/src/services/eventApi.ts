@@ -80,10 +80,10 @@ export interface HistoricalEventTrack {
   points: HistoricalTrackPoint[]
 }
 
-type JsonRequester = <T>(url: string) => Promise<T>
+type JsonRequester = <T>(url: string, signal?: AbortSignal) => Promise<T>
 
-const requestJson: JsonRequester = async <T,>(url: string): Promise<T> => {
-  const response = await fetch(url)
+const requestJson: JsonRequester = async <T,>(url: string, signal?: AbortSignal): Promise<T> => {
+  const response = await fetch(url, { signal })
   if (!response.ok) throw new Error(`Historical event request failed: ${response.status}`)
   return response.json() as Promise<T>
 }
@@ -98,9 +98,10 @@ export class EventApiClient {
     this.request = request
   }
 
-  list(): Promise<HistoricalEventSummary[]> {
+  list(signal?: AbortSignal): Promise<HistoricalEventSummary[]> {
+    if (signal) return this.request<HistoricalEventSummary[]>(API_BASE, signal)
     if (!this.listPromise) {
-      this.listPromise = this.request<HistoricalEventSummary[]>(API_BASE).catch((error) => {
+      this.listPromise = this.request<HistoricalEventSummary[]>(API_BASE, signal).catch((error) => {
         this.listPromise = null
         throw error
       })
@@ -108,10 +109,11 @@ export class EventApiClient {
     return this.listPromise
   }
 
-  detail(eventId: string): Promise<HistoricalEventDetail> {
+  detail(eventId: string, signal?: AbortSignal): Promise<HistoricalEventDetail> {
+    if (signal) return this.request<HistoricalEventDetail>(`${API_BASE}/${encodeURIComponent(eventId)}`, signal)
     const existing = this.detailPromises.get(eventId)
     if (existing) return existing
-    const request = this.request<HistoricalEventDetail>(`${API_BASE}/${encodeURIComponent(eventId)}`)
+    const request = this.request<HistoricalEventDetail>(`${API_BASE}/${encodeURIComponent(eventId)}`, signal)
       .catch((error) => {
         this.detailPromises.delete(eventId)
         throw error
@@ -120,10 +122,11 @@ export class EventApiClient {
     return request
   }
 
-  track(eventId: string): Promise<HistoricalEventTrack> {
+  track(eventId: string, signal?: AbortSignal): Promise<HistoricalEventTrack> {
+    if (signal) return this.request<HistoricalEventTrack>(`${API_BASE}/${encodeURIComponent(eventId)}/track`, signal)
     const existing = this.trackPromises.get(eventId)
     if (existing) return existing
-    const request = this.request<HistoricalEventTrack>(`${API_BASE}/${encodeURIComponent(eventId)}/track`)
+    const request = this.request<HistoricalEventTrack>(`${API_BASE}/${encodeURIComponent(eventId)}/track`, signal)
       .catch((error) => {
         this.trackPromises.delete(eventId)
         throw error

@@ -1,6 +1,6 @@
 import type { TemperatureSlice } from './temperatureSlice.ts'
 import { greatCircleKilometres } from './oceanAnalysis.ts'
-import type { DatasetMetadata } from '../services/api.ts'
+import type { CurrentProfileResponse, DatasetMetadata, ScalarProfileResponse } from '../services/api.ts'
 
 export interface ProbeLocation { latitude: number; longitude: number }
 export interface ProbeGridMatch extends ProbeLocation { latitudeIndex: number; longitudeIndex: number }
@@ -60,6 +60,44 @@ export const probeCacheKey = (datasetIds: string[], globalTime: string, location
 
 export const canActivateProbe = (generation: number, activeGeneration: number, aborted: boolean): boolean =>
   !aborted && generation === activeGeneration
+
+export const scalarProfileFromResponse = (response: ScalarProfileResponse, globalTime: string): ProbeScalarProfile => ({
+  datasetId: response.dataset_id,
+  variable: response.variable,
+  actualTime: response.actual_time,
+  timeOffsetMilliseconds: timestampMilliseconds(response.actual_time) - timestampMilliseconds(globalTime),
+  matched: {
+    latitude: response.matched.latitude,
+    longitude: response.matched.longitude,
+    latitudeIndex: response.matched.latitude_index,
+    longitudeIndex: response.matched.longitude_index,
+  },
+  depthUnits: response.depth_units,
+  units: response.units,
+  levels: response.levels,
+})
+
+export const currentProfileFromResponse = (response: CurrentProfileResponse, globalTime: string): ProbeCurrentProfile => ({
+  uDatasetId: response.u_dataset_id,
+  vDatasetId: response.v_dataset_id,
+  actualTime: response.actual_time,
+  timeOffsetMilliseconds: timestampMilliseconds(response.actual_time) - timestampMilliseconds(globalTime),
+  matched: {
+    latitude: response.matched.latitude,
+    longitude: response.matched.longitude,
+    latitudeIndex: response.matched.latitude_index,
+    longitudeIndex: response.matched.longitude_index,
+  },
+  depthUnits: response.depth_units,
+  units: response.units,
+  levels: response.levels.map((level) => ({
+    depth: level.depth,
+    u: level.u,
+    v: level.v,
+    speed: level.speed,
+    directionTowardDegrees: level.direction_toward_degrees,
+  })),
+})
 
 const sameCoordinates = (left: number[], right: number[]): boolean =>
   left.length === right.length && left.every((value, index) => value === right[index])

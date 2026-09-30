@@ -40,6 +40,26 @@ export interface DatasetMetadata {
   time_values: string[] | null
 }
 
+export interface ScalarProfileResponse {
+  dataset_id: string
+  variable: string
+  actual_time: string
+  matched: { latitude: number; longitude: number; latitude_index: number; longitude_index: number }
+  depth_units: string
+  units: string
+  levels: Array<{ depth: number; value: number | null }>
+}
+
+export interface CurrentProfileResponse {
+  u_dataset_id: string
+  v_dataset_id: string
+  actual_time: string
+  matched: { latitude: number; longitude: number; latitude_index: number; longitude_index: number }
+  depth_units: string
+  units: string
+  levels: Array<{ depth: number; u: number | null; v: number | null; speed: number | null; direction_toward_degrees: number | null }>
+}
+
 interface JsonRequestOptions {
   signal?: AbortSignal
 }
@@ -90,3 +110,29 @@ export const fetchTemperatureSlice = async (
     'Failed to load temperature slice',
     { signal },
   )
+
+export const fetchScalarProfile = async (
+  datasetId: string,
+  variable: string,
+  timeIndex: number,
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<ScalarProfileResponse> => requestJson(
+  `${API_BASE}/datasets/${encodeURIComponent(datasetId)}/profile?variable=${encodeURIComponent(variable)}&time_index=${encodeURIComponent(timeIndex)}&latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`,
+  'Failed to load model profile',
+  { signal },
+)
+
+export const fetchCurrentProfile = async (
+  uDatasetId: string,
+  vDatasetId: string,
+  timeIndex: number,
+  latitude: number,
+  longitude: number,
+  signal?: AbortSignal,
+): Promise<CurrentProfileResponse> => requestJson(
+  `${API_BASE}/datasets/${encodeURIComponent(uDatasetId)}/current-profile?v_dataset_id=${encodeURIComponent(vDatasetId)}&time_index=${encodeURIComponent(timeIndex)}&latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`,
+  'Failed to load current profile',
+  { signal },
+)

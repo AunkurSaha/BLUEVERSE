@@ -160,7 +160,20 @@ const OceanGlobe: React.FC<OceanGlobeProps> = ({
       },
     })
 
+    let resizeFrame = 0
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame)
+      resizeFrame = requestAnimationFrame(() => {
+        if (viewer.isDestroyed() || !container.clientWidth || !container.clientHeight) return
+        viewer.resize()
+        viewer.scene.requestRender()
+      })
+    })
+    resizeObserver.observe(container)
+
     return () => {
+      resizeObserver.disconnect()
+      cancelAnimationFrame(resizeFrame)
       if (viewerRef.current === viewer) viewerRef.current = null
       setViewerReady(false)
       if (!viewer.isDestroyed()) viewer.destroy()

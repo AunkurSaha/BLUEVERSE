@@ -1,4 +1,4 @@
-import { assertCompatibleCurrentMetadata, assertCompatibleCurrentSlices, buildCurrentProbeProfile, buildScalarProbeProfile, canActivateProbe, clearProbeState, currentDirectionToward, currentSpeed, nearestTimestamp, nearestValidGridColumn, pointInsideGridDomain, probeCacheKey } from './oceanProbe.ts'
+import { assertCompatibleCurrentMetadata, assertCompatibleCurrentSlices, buildCurrentProbeProfile, buildScalarProbeProfile, canActivateProbe, clearProbeState, currentDirectionToward, currentProfileFromResponse, currentSpeed, nearestTimestamp, nearestValidGridColumn, pointInsideGridDomain, probeCacheKey, scalarProfileFromResponse } from './oceanProbe.ts'
 import type { TemperatureSlice } from './temperatureSlice.ts'
 import type { DatasetMetadata } from '../services/api.ts'
 
@@ -70,6 +70,18 @@ assert(missingTimeRejected, 'missing compatible timestamp rejected')
 const probeSources = ['arabian-sea-temperature', 'arabian-sea-salinity', 'arabian-sea-uo', 'arabian-sea-vo']
 assert(probeCacheKey(probeSources, 't', { latitude: 10, longitude: 80 }) === probeCacheKey(probeSources, 't', { latitude: 10, longitude: 80 }) && probeCacheKey(probeSources, 't', { latitude: 10, longitude: 80 }) !== probeCacheKey(['bay-of-bengal-temperature', ...probeSources.slice(1)], 't', { latitude: 10, longitude: 80 }) && probeCacheKey(probeSources, 't', { latitude: 10, longitude: 80 }) !== probeCacheKey(probeSources, 't2', { latitude: 10, longitude: 80 }) && probeCacheKey(probeSources, 't', { latitude: 10, longitude: 80 }) !== probeCacheKey(probeSources, 't', { latitude: 11, longitude: 80 }), 'probe cache key includes all datasets, time, and location')
 assert(canActivateProbe(4, 4, false) && !canActivateProbe(3, 4, false) && !canActivateProbe(4, 4, true), 'stale and aborted probe result rejected')
+const scalarResponse = scalarProfileFromResponse({
+  dataset_id: 'temperature', variable: 'thetao', actual_time: '2026-09-21T06:00:00',
+  matched: { latitude: 11, longitude: 80, latitude_index: 1, longitude_index: 0 },
+  depth_units: 'm', units: 'degrees_C', levels: [{ depth: 0.5, value: 21 }],
+}, '2026-09-21T00:00:00')
+assert(scalarResponse.matched.latitudeIndex === 1 && scalarResponse.timeOffsetMilliseconds === 6 * 3_600_000, 'bounded scalar profile response preserves match and time offset')
+const currentResponse = currentProfileFromResponse({
+  u_dataset_id: 'uo', v_dataset_id: 'vo', actual_time: '2026-09-21T00:00:00',
+  matched: { latitude: 11, longitude: 80, latitude_index: 1, longitude_index: 0 },
+  depth_units: 'm', units: 'm s-1', levels: [{ depth: 0.5, u: 1, v: 0, speed: 1, direction_toward_degrees: 90 }],
+}, '2026-09-21T00:00:00')
+assert(currentResponse.levels[0].directionTowardDegrees === 90 && currentResponse.uDatasetId === 'uo', 'bounded current profile response preserves joint current values')
 const cleared = clearProbeState()
 assert(!cleared.enabled && cleared.location === null && cleared.frame === null, 'probe cleanup state')
 for (let cycle = 0; cycle < 3; cycle += 1) {

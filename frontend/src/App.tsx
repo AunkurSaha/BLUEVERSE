@@ -3,6 +3,7 @@ import AppHeader from './components/layout/AppHeader'
 import LeftSidebar from './components/layout/LeftSidebar'
 import RightInspector from './components/layout/RightInspector'
 import BottomTimeline from './components/layout/BottomTimeline'
+import ToolInstruction from './components/layout/ToolInstruction'
 import OceanGlobe from './components/globe/OceanGlobe'
 import TemperatureLayerStatus from './components/globe/TemperatureLayerStatus'
 import TemperatureLegend from './components/globe/TemperatureLegend'
@@ -23,11 +24,14 @@ import {
   fetchDatasetMetadata,
   fetchDatasetCatalog,
   fetchHealth,
+  fetchCurrentProfile,
+  fetchScalarProfile,
   type BackendStatus,
   type DatasetMetadata,
 } from './services/api'
 import {
   computeTemporalScale,
+  formatSelectedTime,
   prepareTemperatureSlice,
   TemperatureSliceValidationError,
   type PreparedTemperatureSlice,
@@ -51,13 +55,14 @@ import { greatCircleKilometres, transectCacheKey } from './lib/oceanAnalysis'
 import { buildTransectFrame, canActivateTransect, pointInDomain, supportsTransectVariable, type GeoPoint, type ModelDomain, type TransectFrame } from './lib/transect'
 import TransectCrossSection from './components/analysis/TransectCrossSection'
 import OceanProbePanel from './components/analysis/OceanProbePanel'
-import { assertCompatibleCurrentMetadata, assertCompatibleCurrentSlices, buildCurrentProbeProfile, buildScalarProbeProfile, canActivateProbe, nearestTimestamp, probeCacheKey, type OceanProbeFrame, type ProbeLocation } from './lib/oceanProbe'
+import { assertCompatibleCurrentMetadata, assertCompatibleCurrentSlices, canActivateProbe, currentProfileFromResponse, nearestTimestamp, probeCacheKey, scalarProfileFromResponse, type OceanProbeFrame, type ProbeLocation } from './lib/oceanProbe'
 import AlertPanel from './components/analysis/AlertPanel'
 import { filterAlertSummaries, summarizeAlerts } from './lib/alerts'
 import { fetchArgoAlertDetail, fetchArgoAlerts, type AlertFilter, type AlertThresholds, type ArgoProfileAlertDetail, type ArgoProfileAlertSummary } from './services/alertApi'
 import { fetchRegion, fetchRegions, type RegionDetail, type RegionSummary } from './services/regionApi'
 import { canActivateScientificRequest, currentDatasetsForRegion, datasetForVariable, DEFAULT_REGION_ID } from './lib/regions'
 import { eventApi, type HistoricalEventDetail, type HistoricalEventSummary, type HistoricalEventTrack } from './services/eventApi'
+import { formatHistoricalUtc, historicalAnalysisDescription, selectedTrackPoint } from './lib/historicalEvents'
 import {
   fetchHistoricalDifference,
   fetchHistoricalOceanConfiguration,
@@ -82,8 +87,17 @@ import {
   type AnalysisContext,
   type HistoricalAnalysisMode,
 } from './lib/historicalOcean'
+import {
+  HISTORICAL_AVAILABILITY_TIMEOUT_MS,
+  PROBE_TIMEOUT_MS,
+  RequestTimeoutError,
+  isAbortError,
+  runWithTimeout,
+} from './lib/requestLifecycle'
 
 const App: React.FC = () => {
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [workflowOpen, setWorkflowOpen] = useState(false)
   const [regions, setRegions] = useState<RegionSummary[]>([])
   const [selectedRegionId, setSelectedRegionId] = useState(DEFAULT_REGION_ID)
   const [regionDetail, setRegionDetail] = useState<RegionDetail | null>(null)
@@ -145,6 +159,8 @@ const App: React.FC = () => {
   const [probeFrame, setProbeFrame] = useState<OceanProbeFrame | null>(null)
   const [probeLoading, setProbeLoading] = useState(false)
   const [probeStatus, setProbeStatus] = useState<string | null>('Ocean Probe is disabled.')
+  const [probeError, setProbeError] = useState<string | null>(null)
+  const [probeRetry, setProbeRetry] = useState(0)
   // The fixed temporal scale is stored with the dataset+depth it belongs to, so
   // a scale computed for a previous depth is never applied to a new one.
   const [colorScaleState, setColorScaleState] = useState<
@@ -255,48 +271,59 @@ const App: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    let active = true
+    const controller = new AbortController()
     setHistoricalEventLoading(true)
     setHistoricalEventError(null)
-    eventApi.list()
+    runWithTimeout(
+      (signal) => eventApi.list(signal),
+      HISTORICAL_AVAILABILITY_TIMEOUT_MS,
+      controller.signal,
+    )
       .then((items) => {
-        if (!active) return
+        if (controller.signal.aborted) return
         setHistoricalEvents(items)
         setSelectedHistoricalEventId((current) => current || items[0]?.id || '')
         if (items.length === 0) setHistoricalEventLoading(false)
       })
       .catch((error) => {
-        if (!active) return
-        setHistoricalEventError(error instanceof Error ? error.message : 'Unable to load historical events')
+        if (controller.signal.aborted || isAbortError(error)) return
+        setHistoricalEventError(error instanceof RequestTimeoutError ? 'Historical event request timed out.' : error instanceof Error ? error.message : 'Unable to load historical events')
         setHistoricalEventLoading(false)
       })
-    return () => { active = false }
+    return () => controller.abort()
   }, [historicalEventRetry])
 
   useEffect(() => {
-    if (!selectedHistoricalEventId) return
-    let active = true
+    if (!selectedHistoricalEventId) {
+      setHistoricalEventLoading(false)
+      return
+    }
+    const controller = new AbortController()
     setHistoricalEventLoading(true)
     setHistoricalEventError(null)
-    Promise.all([
-      eventApi.detail(selectedHistoricalEventId),
-      eventApi.track(selectedHistoricalEventId),
-    ])
+    runWithTimeout(
+      (signal) => Promise.all([
+        eventApi.detail(selectedHistoricalEventId, signal),
+        eventApi.track(selectedHistoricalEventId, signal),
+      ]),
+      HISTORICAL_AVAILABILITY_TIMEOUT_MS,
+      controller.signal,
+    )
       .then(([detail, track]) => {
-        if (!active) return
+        if (controller.signal.aborted) return
         setHistoricalEventDetail(detail)
         setHistoricalEventTrack(track)
         setSelectedHistoricalPointIndex(0)
       })
       .catch((error) => {
-        if (!active) return
+        if (controller.signal.aborted || isAbortError(error)) return
         setHistoricalEventDetail(null)
         setHistoricalEventTrack(null)
         setHistoricalEventVisible(false)
-        setHistoricalEventError(error instanceof Error ? error.message : 'Unable to load the historical event track')
+        setHistoricalEventError(error instanceof RequestTimeoutError ? 'Historical availability request timed out.' : error instanceof Error ? error.message : 'Unable to load the historical event track')
       })
-      .finally(() => { if (active) setHistoricalEventLoading(false) })
-    return () => { active = false }
+      .finally(() => { if (!controller.signal.aborted) setHistoricalEventLoading(false) })
+    return () => controller.abort()
   }, [selectedHistoricalEventId, historicalEventRetry])
 
   useEffect(() => {
@@ -309,14 +336,18 @@ const App: React.FC = () => {
     const controller = new AbortController()
     setHistoricalConfigurationLoading(true)
     setHistoricalConfigurationError(null)
-    fetchHistoricalOceanConfiguration(selectedHistoricalEventId, controller.signal)
+    runWithTimeout(
+      (signal) => fetchHistoricalOceanConfiguration(selectedHistoricalEventId, signal),
+      HISTORICAL_AVAILABILITY_TIMEOUT_MS,
+      controller.signal,
+    )
       .then((configuration) => {
         if (!controller.signal.aborted) setHistoricalConfiguration(configuration)
       })
       .catch((loadError) => {
         if (!controller.signal.aborted) {
           setHistoricalConfiguration(null)
-          setHistoricalConfigurationError(loadError instanceof Error ? loadError.message : 'Unable to load historical ocean configuration')
+          setHistoricalConfigurationError(loadError instanceof RequestTimeoutError ? 'Historical ocean metadata request timed out.' : loadError instanceof Error ? loadError.message : 'Unable to load historical ocean configuration')
         }
       })
       .finally(() => { if (!controller.signal.aborted) setHistoricalConfigurationLoading(false) })
@@ -980,6 +1011,7 @@ const App: React.FC = () => {
     if (!probeEnabled || !probeLocation) {
       probeGenerationRef.current += 1
       setProbeLoading(false)
+      setProbeError(null)
       if (probeEnabled) setProbeStatus('Click inside the Temperature model domain to select a probe.')
       return
     }
@@ -993,12 +1025,17 @@ const App: React.FC = () => {
       const controller = new AbortController()
       const generation = ++probeGenerationRef.current
       setProbeLoading(true)
-      setProbeStatus('Loading GLORYS12V1 reanalysis profiles...')
-      fetchHistoricalProbe(
-        selectedHistoricalEventId,
-        requestedTime,
-        probeLocation.latitude,
-        probeLocation.longitude,
+      setProbeStatus(null)
+      setProbeError(null)
+      runWithTimeout(
+        (signal) => fetchHistoricalProbe(
+          selectedHistoricalEventId,
+          requestedTime,
+          probeLocation.latitude,
+          probeLocation.longitude,
+          signal,
+        ),
+        PROBE_TIMEOUT_MS,
         controller.signal,
       ).then((response) => {
         if (!canActivateProbe(generation, probeGenerationRef.current, controller.signal.aborted)) return
@@ -1009,7 +1046,7 @@ const App: React.FC = () => {
         setProbeStatus(null)
       }).catch((loadError) => {
         if (canActivateProbe(generation, probeGenerationRef.current, controller.signal.aborted)) {
-          setProbeStatus(loadError instanceof Error ? loadError.message : 'Unable to load historical reanalysis profiles.')
+          setProbeError(loadError instanceof RequestTimeoutError ? 'Probe data could not be loaded before the request timed out.' : loadError instanceof Error ? loadError.message : 'Unable to load historical reanalysis profiles.')
         }
       }).finally(() => {
         if (canActivateProbe(generation, probeGenerationRef.current, controller.signal.aborted)) setProbeLoading(false)
@@ -1033,53 +1070,43 @@ const App: React.FC = () => {
     const controller = new AbortController()
     const generation = ++probeGenerationRef.current
     setProbeLoading(true)
-    setProbeStatus('Loading real model water columns...')
+    setProbeStatus(null)
+    setProbeError(null)
 
-    const metadataFor = async (datasetId: string): Promise<DatasetMetadata> => {
+    const metadataFor = async (datasetId: string, requestSignal: AbortSignal): Promise<DatasetMetadata> => {
       const cachedMetadata = auxiliaryMetadataCacheRef.current.get(datasetId)
       if (cachedMetadata) return cachedMetadata
-      const metadata = await fetchDatasetMetadata(datasetId, controller.signal)
-      if (!controller.signal.aborted) auxiliaryMetadataCacheRef.current.set(datasetId, metadata)
+      const metadata = await fetchDatasetMetadata(datasetId, requestSignal)
+      if (!requestSignal.aborted) auxiliaryMetadataCacheRef.current.set(datasetId, metadata)
       return metadata
-    }
-    const slicesFor = async (metadata: DatasetMetadata, datasetId: string, variable: string, timeIndex: number): Promise<TemperatureSlice[]> => {
-      const depthIndexes = metadata.selectable_depth_indices ?? []
-      if (depthIndexes.length === 0) throw new Error(`Variable unavailable: ${variable} has no selectable depth levels.`)
-      return Promise.all(depthIndexes.map(async (depthIndex) => {
-        const cacheKey = sliceCacheKey(datasetId, variable, timeIndex, depthIndex)
-        const cachedSlice = sliceCacheRef.current.get(cacheKey)
-        if (cachedSlice) return cachedSlice
-        const slice = await fetchTemperatureSlice(datasetId, variable, timeIndex, depthIndex, controller.signal)
-        if (!controller.signal.aborted) sliceCacheRef.current.set(cacheKey, slice)
-        return slice
-      }))
     }
     const messageFor = (result: PromiseRejectedResult): string => result.reason instanceof Error ? result.reason.message : 'Failed data request.'
 
-    const load = async () => {
+    const load = async (requestSignal: AbortSignal) => {
       const temperatureTask = (async () => {
         const source = { datasetId: temperatureDatasetId, variable: 'thetao' }
-        const metadata = await metadataFor(source.datasetId)
+        const metadata = await metadataFor(source.datasetId, requestSignal)
         const selected = nearestTimestamp(globalTime, metadata.time_values ?? [])
-        return buildScalarProbeProfile(source.datasetId, source.variable, globalTime, probeLocation, await slicesFor(metadata, source.datasetId, source.variable, selected.index))
+        const response = await fetchScalarProfile(source.datasetId, source.variable, selected.index, probeLocation.latitude, probeLocation.longitude, requestSignal)
+        return scalarProfileFromResponse(response, globalTime)
       })()
       const salinityTask = (async () => {
         if (!salinityDatasetId) throw new Error('Salinity is unavailable for this region.')
         const source = { datasetId: salinityDatasetId, variable: 'so' }
-        const metadata = await metadataFor(source.datasetId)
+        const metadata = await metadataFor(source.datasetId, requestSignal)
         const selected = nearestTimestamp(globalTime, metadata.time_values ?? [])
-        return buildScalarProbeProfile(source.datasetId, source.variable, globalTime, probeLocation, await slicesFor(metadata, source.datasetId, source.variable, selected.index))
+        const response = await fetchScalarProfile(source.datasetId, source.variable, selected.index, probeLocation.latitude, probeLocation.longitude, requestSignal)
+        return scalarProfileFromResponse(response, globalTime)
       })()
       const currentsTask = (async () => {
         if (!currentDatasets) throw new Error('Currents are unavailable for this region.')
-        const [uMetadata, vMetadata] = await Promise.all([metadataFor(currentDatasets.u), metadataFor(currentDatasets.v)])
+        const [uMetadata, vMetadata] = await Promise.all([metadataFor(currentDatasets.u, requestSignal), metadataFor(currentDatasets.v, requestSignal)])
         const uTime = nearestTimestamp(globalTime, uMetadata.time_values ?? [])
         const vTime = nearestTimestamp(globalTime, vMetadata.time_values ?? [])
-        const [uSlices, vSlices] = await Promise.all([
-          slicesFor(uMetadata, currentDatasets.u, 'uo', uTime.index),
-          slicesFor(vMetadata, currentDatasets.v, 'vo', vTime.index),
-        ])
-        return buildCurrentProbeProfile(currentDatasets.u, currentDatasets.v, globalTime, probeLocation, uSlices, vSlices)
+        assertCompatibleCurrentMetadata(uMetadata, vMetadata, uTime.index, uMetadata.selectable_depth_indices?.[0] ?? 0)
+        if (uTime.index !== vTime.index) throw new Error('U and V do not share a compatible model timestamp.')
+        const response = await fetchCurrentProfile(currentDatasets.u, currentDatasets.v, uTime.index, probeLocation.latitude, probeLocation.longitude, requestSignal)
+        return currentProfileFromResponse(response, globalTime)
       })()
       const [temperatureResult, salinityResult, currentsResult] = await Promise.allSettled([temperatureTask, salinityTask, currentsTask])
       if (!canActivateProbe(generation, probeGenerationRef.current, controller.signal.aborted)) return
@@ -1098,17 +1125,21 @@ const App: React.FC = () => {
       probeCacheRef.current.set(key, frame)
       while (probeCacheRef.current.size > 8) probeCacheRef.current.delete(probeCacheRef.current.keys().next().value as string)
       setProbeFrame(frame)
-      setProbeStatus(frame.temperature || frame.salinity || frame.currents ? null : 'No valid data at location.')
+      if (frame.temperature || frame.salinity || frame.currents) {
+        setProbeStatus(null)
+      } else {
+        setProbeError([frame.errors.temperature, frame.errors.salinity, frame.errors.currents].filter(Boolean).join(' ') || 'No valid data at location.')
+      }
       setProbeLoading(false)
     }
-    load().catch((error) => {
+    runWithTimeout(load, PROBE_TIMEOUT_MS, controller.signal).catch((error) => {
       if (canActivateProbe(generation, probeGenerationRef.current, controller.signal.aborted)) {
-        setProbeStatus(error instanceof Error ? error.message : 'Failed data request.')
+        setProbeError(error instanceof RequestTimeoutError ? 'Probe data could not be loaded before the request timed out.' : error instanceof Error ? error.message : 'Failed data request.')
         setProbeLoading(false)
       }
     })
     return () => controller.abort()
-  }, [analysisContext, historicalProbeTimeOverride, selectedHistoricalEventId, probeEnabled, probeLocation, datasetMetadata, selectedTimeIndex, regionDetail])
+  }, [analysisContext, historicalProbeTimeOverride, selectedHistoricalEventId, probeEnabled, probeLocation, probeRetry, datasetMetadata, selectedTimeIndex, selectedVariable, regionDetail])
 
   const timeLevels = datasetMetadata?.time_coordinate
     ? datasetMetadata.dimensions[datasetMetadata.time_coordinate] ?? null
@@ -1150,7 +1181,7 @@ const App: React.FC = () => {
 
   const handleDrawTransect = () => {
     probeGenerationRef.current += 1
-    setProbeEnabled(false); setProbeLocation(null); setProbeFrame(null); setProbeLoading(false); setProbeStatus('Ocean Probe is disabled.')
+    setProbeEnabled(false); setProbeLocation(null); setProbeFrame(null); setProbeLoading(false); setProbeStatus('Ocean Probe is disabled.'); setProbeError(null)
     setTransectStart(null); setTransectEnd(null); setTransectFrame(null)
     setTransectStatus('Choose a start point on the globe.'); setTransectDrawMode(true)
   }
@@ -1171,6 +1202,8 @@ const App: React.FC = () => {
     setProbeLocation(location)
     setProbeFrame(null)
     setProbeStatus(null)
+    setProbeError(null)
+    setInspectorOpen(true)
   }, [])
 
   const handleProbeCoordinateSubmit = React.useCallback((location: ProbeLocation) => {
@@ -1185,6 +1218,7 @@ const App: React.FC = () => {
     probeGenerationRef.current += 1
     setProbeEnabled(enabled)
     setProbeLoading(false)
+    setProbeError(null)
     if (enabled) {
       setTransectDrawMode(false)
       setProbeStatus('Click inside the Temperature model domain to select a probe.')
@@ -1194,6 +1228,21 @@ const App: React.FC = () => {
       setProbeStatus('Ocean Probe is disabled.')
     }
   }
+
+  const handleProbeCancel = React.useCallback(() => {
+    probeGenerationRef.current += 1
+    setProbeLocation(null)
+    setProbeFrame(null)
+    setProbeLoading(false)
+    setProbeError(null)
+    setProbeStatus('Click another ocean location to load water-column profiles.')
+  }, [])
+
+  const handleProbeRetry = React.useCallback(() => {
+    setProbeFrame(null)
+    setProbeError(null)
+    setProbeRetry((value) => value + 1)
+  }, [])
 
   // Fetch ARGO profile summaries the first time the layer is enabled.
   useEffect(() => {
@@ -1283,12 +1332,13 @@ const App: React.FC = () => {
   useEffect(()=>{if(!gliderVisible||gliderMission)return;const c=new AbortController();setGliderLoading(true);setGliderError(null);listGliderMissions(c.signal).then(async m=>{const mission=m[0];const points=await getGliderTrajectory(mission.mission_id,c.signal);if(c.signal.aborted)return;setGliderMission(mission);setGliderPoints(points)}).catch(e=>!c.signal.aborted&&setGliderError(e instanceof Error?e.message:'Unable to load Glider mission')).finally(()=>!c.signal.aborted&&setGliderLoading(false));return()=>c.abort()},[gliderVisible,gliderMission])
   useEffect(()=>{if(selectedGliderIndex===null||!gliderMission)return;const c=new AbortController();setGliderProfileLoading(true);setGliderError(null);getGliderProfile(gliderMission.mission_id,selectedGliderIndex,c.signal).then(p=>!c.signal.aborted&&setGliderProfile(p)).catch(e=>!c.signal.aborted&&setGliderError(e instanceof Error?e.message:'Unable to load Glider profile')).finally(()=>!c.signal.aborted&&setGliderProfileLoading(false));return()=>c.abort()},[selectedGliderIndex,gliderMission])
   useEffect(()=>{if(!gliderVisible||!gliderMission||!curtainOpen)return;const c=new AbortController();getGliderCurtain(gliderMission.mission_id,curtainVariable,20,c.signal).then(x=>!c.signal.aborted&&setCurtain(x)).catch(e=>!c.signal.aborted&&setGliderError(e instanceof Error?e.message:'Unable to load Glider curtain'));return()=>c.abort()},[gliderVisible,gliderMission,curtainVariable,curtainOpen])
-  const handleGliderSelect=(index:number)=>{setSelectedArgoId(null);setSelectedAlertProfileId(null);setSelectedGliderIndex(index)}
+  const handleGliderSelect=(index:number)=>{setSelectedArgoId(null);setSelectedAlertProfileId(null);setSelectedGliderIndex(index);setInspectorOpen(true)}
 
   const handleArgoSelect = React.useCallback((profileId: string) => {
     setSelectedAlertProfileId(null)
     setSelectedGliderIndex(null)
     setSelectedArgoId(profileId)
+    setInspectorOpen(true)
   }, [])
 
   // Fetch profile detail and collocation when a marker is selected.
@@ -1366,6 +1416,7 @@ const App: React.FC = () => {
     setSelectedArgoId(null)
     setSelectedGliderIndex(null)
     setSelectedAlertProfileId(profileId)
+    setInspectorOpen(true)
   }, [])
 
   // Playback: advance one time index per interval, wrapping at the end.
@@ -1511,6 +1562,7 @@ const App: React.FC = () => {
     setProbeLocation({ latitude: point.latitude, longitude: point.longitude })
     setProbeFrame(null)
     setProbeStatus(null)
+    setInspectorOpen(true)
   }, [analysisContext, historicalEventTrack, selectedHistoricalPointIndex])
 
   const handleRegionSelect = React.useCallback((regionId: string) => {
@@ -1550,10 +1602,48 @@ const App: React.FC = () => {
     }
   }, [filteredAlertSummaries, selectedAlertProfileId])
 
+  useEffect(() => {
+    if (subsurfaceSample || isosurfaceSample) setInspectorOpen(true)
+  }, [subsurfaceSample, isosurfaceSample])
+
+  const handleHistoricalPointSelect = React.useCallback((index: number) => {
+    setSelectedHistoricalPointIndex(index)
+    setInspectorOpen(true)
+  }, [])
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setWorkflowOpen(false)
+      setInspectorOpen(false)
+      if (transectDrawMode) setTransectDrawMode(false)
+      if (probeEnabled && !probeLocation) handleProbeEnabledChange(false)
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [transectDrawMode, probeEnabled, probeLocation])
+
+  const activeSlice = oceanLayer?.type === 'scalar' ? oceanLayer.data.slice : oceanLayer?.uo.slice
+  const historicalTimeDescription = historicalAnalysisDescription(historicalAnalysisMode, historicalPhase, historicalComparison, historicalConfiguration?.analysis_windows ?? [], historicalOceanTime)
+
   return (
-    <div className="flex h-dvh min-h-dvh w-full min-w-0 flex-col overflow-hidden bg-[#050b14]">
-      <AppHeader backendStatus={backendStatus} selectedDataset={selectedDataset} />
-      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 lg:grid lg:grid-cols-[272px_minmax(0,1fr)_340px] lg:gap-4 lg:overflow-hidden lg:p-4">
+    <div className="flex h-dvh min-h-dvh w-full min-w-0 flex-col overflow-hidden bg-[#030812]">
+      <AppHeader
+        backendStatus={backendStatus}
+        selectedDataset={selectedDataset}
+        regionName={selectedRegion?.name ?? null}
+        variable={selectedVariable}
+        actualTime={activeSlice?.actual_time ? String(activeSlice.actual_time) : null}
+        actualDepth={typeof activeSlice?.actual_depth === 'number' ? activeSlice.actual_depth : null}
+        depthUnits={activeSlice?.depth_units ?? null}
+        analysisContext={analysisContext}
+        historicalMode={historicalAnalysisMode}
+        historicalEventName={historicalEventDetail?.name ?? null}
+        drawerOpen={inspectorOpen}
+        onDrawerToggle={() => { setWorkflowOpen(false); setInspectorOpen((open) => !open) }}
+        onWorkflowOpen={() => { setInspectorOpen(false); setWorkflowOpen(true) }}
+      />
+      <main className={`workspace-shell ${inspectorOpen ? 'inspector-open' : ''} ${workflowOpen ? 'workflow-open' : ''}`}>
         <LeftSidebar
           regions={regions}
           selectedRegionId={selectedRegionId}
@@ -1633,7 +1723,7 @@ const App: React.FC = () => {
           historicalEventError={historicalEventError}
           onHistoricalEventSelect={handleHistoricalEventSelect}
           onHistoricalEventVisibilityChange={setHistoricalEventVisible}
-          onHistoricalPointSelect={setSelectedHistoricalPointIndex}
+          onHistoricalPointSelect={handleHistoricalPointSelect}
           onHistoricalEventRetry={() => setHistoricalEventRetry((value) => value + 1)}
           analysisContext={analysisContext}
           historicalAnalysisMode={historicalAnalysisMode}
@@ -1658,10 +1748,11 @@ const App: React.FC = () => {
           onHistoricalComparisonChange={setHistoricalComparison}
           onHistoricalTimeChange={setSelectedTimeIndex}
           onInspectHistoricalTrackPoint={handleInspectHistoricalTrackPoint}
+          onRequestClose={() => setWorkflowOpen(false)}
         />
         <section
           aria-label="Cesium globe viewport"
-          className="relative min-h-[60vh] flex-1 overflow-hidden rounded-lg border border-white/10 bg-[#02060d] lg:min-h-0"
+          className="map-workspace"
         >
           <OceanGlobe
             selectedRegion={selectedRegion}
@@ -1704,7 +1795,7 @@ const App: React.FC = () => {
             historicalEventTrack={historicalEventTrack}
             historicalEventVisible={historicalEventVisible}
             selectedHistoricalPointIndex={selectedHistoricalPointIndex}
-            onHistoricalPointSelect={setSelectedHistoricalPointIndex}
+            onHistoricalPointSelect={handleHistoricalPointSelect}
           />
           <TemperatureLayerStatus
             isLoading={sliceLoading}
@@ -1722,13 +1813,28 @@ const App: React.FC = () => {
           {scientificLayersVisible && visualizationMode === 'isosurface' && (isosurfaceLoading || isosurfaceStatus) && <p role="status" className="absolute left-3 top-3 rounded-md border border-amber-300/30 bg-[#08111f]/95 px-3 py-2 text-xs text-amber-100">{isosurfaceStatus ?? 'Updating frame...'}</p>}
           {scientificLayersVisible && visualizationMode === 'isosurface' && isosurfaceFrame && !isosurfaceLoading && <p className="absolute bottom-3 left-3 rounded-md border border-amber-300/30 bg-[#08111f]/95 px-3 py-2 text-xs text-amber-100">Temperature Isosurface: {isosurfaceFrame.target.toFixed(1)} °C</p>}
           {scientificLayersVisible && transectEnabled && <TransectCrossSection frame={transectFrame} loading={transectLoading} status={transectStatus} />}
+          {probeEnabled && !probeLocation && <ToolInstruction title="Ocean Probe active" steps={['Click inside the model domain', 'Esc to cancel']} tone={analysisContext === 'historical-event' ? 'historical' : 'current'} />}
+          {transectDrawMode && <ToolInstruction title="Transect selection" steps={[transectStart ? '1. Start point selected' : '1. Select start point', transectStart ? '2. Select end point' : '2. End point follows', 'Esc to cancel']} />}
+          {historicalEventVisible && historicalEventDetail && analysisContext === 'current' && <aside className="temporal-context temporal-context--reference" aria-label="Historical reference overlay timing"><p className="temporal-context__label">Historical reference overlay</p><p className="temporal-context__title">{historicalEventDetail.name} · May 2020</p><p>Background ocean field: Operational model · {activeModelTime ? formatSelectedTime(activeModelTime) : 'source time pending'}</p><button type="button" onClick={handleEnterHistoricalOcean} disabled={historicalEventDetail.historical_ocean_data?.status !== 'AVAILABLE' || !historicalConfiguration}>Explore Historical Ocean</button><small>View co-period 2020 reanalysis</small></aside>}
+          {analysisContext === 'historical-event' && <aside className="temporal-context temporal-context--historical" aria-label="Historical ocean timing"><p className="temporal-context__label">Ocean Analysis</p><p className="temporal-context__title">{historicalTimeDescription}</p><p>GLORYS12V1 Reanalysis</p><small>Selected Cyclone Track Point: {formatHistoricalUtc(selectedTrackPoint(historicalEventTrack, selectedHistoricalPointIndex)?.time ?? null)}</small><small>Separate time selections; not an exact temporal match.</small></aside>}
         </section>
-        {probeEnabled ? (
-          <OceanProbePanel frame={probeFrame} location={probeLocation} loading={probeLoading} status={probeStatus} historical={analysisContext === 'historical-event'} />
+        {inspectorOpen && <section id="context-inspector" className="context-drawer" aria-label="Contextual scientific inspector">{probeEnabled ? (
+          <OceanProbePanel
+            frame={probeFrame}
+            location={probeLocation}
+            loading={probeLoading}
+            status={probeStatus}
+            error={probeError}
+            historical={analysisContext === 'historical-event'}
+            modelSource={analysisContext === 'historical-event' ? 'GLORYS12V1 Reanalysis' : selectedRegion?.name ?? 'Current model region'}
+            onCancel={handleProbeCancel}
+            onRetry={handleProbeRetry}
+            onChooseAnother={handleProbeCancel}
+          />
         ) : selectedAlertProfileId ? (
-          <AlertPanel detail={alertDetail} loading={alertDetailLoading} error={alertDetailError} onClose={() => setSelectedAlertProfileId(null)} />
+          <AlertPanel detail={alertDetail} loading={alertDetailLoading} error={alertDetailError} onClose={() => setInspectorOpen(false)} />
         ) : selectedGliderIndex !== null && gliderMission ? (
-          <GliderInspector mission={gliderMission} profile={gliderProfile} loading={gliderProfileLoading} error={gliderError} onSelect={handleGliderSelect} onClose={()=>setSelectedGliderIndex(null)} />
+          <GliderInspector mission={gliderMission} profile={gliderProfile} loading={gliderProfileLoading} error={gliderError} onSelect={handleGliderSelect} onClose={() => setInspectorOpen(false)} />
         ) : selectedArgoId ? (
           <ArgoInspector
             profile={argoDetail}
@@ -1737,7 +1843,7 @@ const App: React.FC = () => {
             collocation={argoCollocation}
             collocationLoading={collocationLoading}
             collocationError={collocationError}
-            onClose={() => setSelectedArgoId(null)}
+            onClose={() => setInspectorOpen(false)}
           />
         ) : (
           <RightInspector
@@ -1758,8 +1864,11 @@ const App: React.FC = () => {
             previousTimeMean={previousTimeMean}
             subsurfaceSample={subsurfaceSample}
             isosurfaceSample={isosurfaceSample}
+            onClose={() => setInspectorOpen(false)}
           />
-        )}
+        )}</section>}
+        {gliderVisible && curtainOpen && <div className="absolute inset-x-3 bottom-3 z-40 max-h-[55%] overflow-auto"><GliderCurtain data={curtain} variable={curtainVariable} onVariable={setCurtainVariable} /></div>}
+      </main>
         <BottomTimeline
           oceanLayer={oceanLayer}
           sliceSelection={selectedDataset ? {
@@ -1776,9 +1885,7 @@ const App: React.FC = () => {
           onPlayToggle={handlePlayToggle}
           timeControlEnabled={analysisContext === 'current' || historicalAnalysisMode === 'daily'}
           timeContextLabel={analysisContext === 'historical-event' && historicalAnalysisMode !== 'daily'
-            ? historicalAnalysisMode === 'phase_mean'
-              ? `${historicalPhase} phase mean`
-              : historicalComparison.replace('-', ' − ')
+            ? historicalTimeDescription
             : null}
           depthLevels={depthLevels}
           depthValues={datasetMetadata?.depth_values ?? null}
@@ -1788,8 +1895,7 @@ const App: React.FC = () => {
           error={sliceError}
           onDepthChange={handleDepthChange}
         />
-        {gliderVisible && (curtainOpen ? <GliderCurtain data={curtain} variable={curtainVariable} onVariable={setCurtainVariable} /> : <button type="button" onClick={()=>setCurtainOpen(true)} className="border border-white/10 bg-[#08111f] p-3 text-sm text-orange-100">Open Mission Curtain</button>)}
-      </main>
+        {gliderVisible && !curtainOpen && <button type="button" onClick={() => setCurtainOpen(true)} className="fixed bottom-32 right-4 z-30 border border-orange-300/30 bg-[#08111f] px-3 py-2 text-xs text-orange-100">Open mission curtain</button>}
     </div>
   )
 }
